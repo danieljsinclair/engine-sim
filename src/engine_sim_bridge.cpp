@@ -1,0 +1,515 @@
+#include "../include/engine_sim_bridge.h"
+
+// Core engine-sim includes
+#include "../include/piston_engine_simulator.h"
+#include "../include/engine.h"
+#include "../include/vehicle.h"
+#include "../include/transmission.h"
+#include "../include/synthesizer.h"
+#include "../include/units.h"
+
+// Scripting includes
+#include "../scripting/include/compiler.h"
+
+#include <string>
+#include <cstring>
+#include <cmath>
+#include <mutex>
+#include <atomic>
+
+// ============================================================================
+// INTERNAL IMPLEMENTATION STRUCTURES
+// ============================================================================
+
+struct EngineSimContext {
+    // Core components
+    PistonEngineSimulator* simulator;
+    Engine* engine;
+    Vehicle* vehicle;
+    Transmission* transmission;
+
+    // Configuration
+    EngineSimConfig config;
+
+    // State
+    std::atomic<double> throttlePosition;
+    std::string lastError;
+    std::mutex errorMutex;
+
+    // Audio conversion buffer (reused, allocation-free after init)
+    int16_t* audioConversionBuffer;
+    size_t conversionBufferSize;
+
+    // Scripting
+    es_script::Compiler* compiler;
+
+    // Statistics
+    EngineSimStats stats;
+
+    EngineSimContext()
+        : simulator(nullptr)
+        , engine(nullptr)
+        , vehicle(nullptr)
+        , transmission(nullptr)
+        , throttlePosition(0.0)
+        , audioConversionBuffer(nullptr)
+        , conversionBufferSize(0)
+        , compiler(nullptr)
+    {
+        std::memset(&config, 0, sizeof(config));
+        std::memset(&stats, 0, sizeof(stats));
+    }
+
+    ~EngineSimContext() {
+        if (audioConversionBuffer) {
+            delete[] audioConversionBuffer;
+            audioConversionBuffer = nullptr;
+        }
+
+        if (simulator) {
+            simulator->endAudioRenderingThread();
+            simulator->destroy();
+            delete simulator;
+            simulator = nullptr;
+        }
+
+        // Note: Engine, Vehicle, Transmission are owned by simulator
+        // Don't delete them explicitly
+
+        if (compiler) {
+            compiler->destroy();
+            delete compiler;
+            compiler = nullptr;
+        }
+    }
+
+    void setError(const std::string& msg) {
+        std::lock_guard<std::mutex> lock(errorMutex);
+        lastError = msg;
+    }
+
+    std::string getError() const {
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(errorMutex));
+        return lastError;
+    }
+};
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+static bool validateHandle(EngineSimHandle handle) {
+    return handle != nullptr;
+}
+
+static EngineSimContext* getContext(EngineSimHandle handle) {
+    return static_cast<EngineSimContext*>(handle);
+}
+
+static void setDefaultConfig(EngineSimConfig* config) {
+    config->sampleRate = 48000;
+    config->inputBufferSize = 1024;
+    config->audioBufferSize = 96000; // 2 seconds @ 48kHz
+    config->simulationFrequency = 10000;
+    config->fluidSimulationSteps = 8;
+    config->targetSynthesizerLatency = 0.05; // 50ms
+    config->volume = 0.5f;
+    config->convolutionLevel = 1.0f;
+    config->airNoise = 1.0f;
+}
+
+// ============================================================================
+// LIFECYCLE FUNCTIONS
+// ============================================================================
+
+EngineSimResult EngineSimCreate(
+    const EngineSimConfig* config,
+    EngineSimHandle* outHandle)
+{
+    if (!outHandle) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    // Allocate context
+    EngineSimContext* ctx = new (std::nothrow) EngineSimContext();
+    if (!ctx) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    // Use default config if none provided
+    if (config) {
+        ctx->config = *config;
+    } else {
+        setDefaultConfig(&ctx->config);
+    }
+
+    // Validate configuration
+    EngineSimResult validateResult = EngineSimValidateConfig(&ctx->config);
+    if (validateResult != ESIM_SUCCESS) {
+        delete ctx;
+        return validateResult;
+    }
+
+    // Create simulator
+    ctx->simulator = new (std::nothrow) PistonEngineSimulator();
+    if (!ctx->simulator) {
+        ctx->setError("Failed to allocate PistonEngineSimulator");
+        delete ctx;
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    // Initialize simulator parameters
+    Simulator::Parameters simParams;
+    simParams.systemType = Simulator::SystemType::NsvOptimized;
+
+    ctx->simulator->initialize(simParams);
+    ctx->simulator->setSimulationFrequency(ctx->config.simulationFrequency);
+    ctx->simulator->setFluidSimulationSteps(ctx->config.fluidSimulationSteps);
+    ctx->simulator->setTargetSynthesizerLatency(ctx->config.targetSynthesizerLatency);
+
+    // Configure synthesizer
+    Synthesizer::Parameters synthParams;
+    synthParams.inputChannelCount = 2; // Stereo
+    synthParams.inputBufferSize = ctx->config.inputBufferSize;
+    synthParams.audioBufferSize = ctx->config.audioBufferSize;
+    synthParams.inputSampleRate = static_cast<float>(ctx->config.simulationFrequency);
+    synthParams.audioSampleRate = static_cast<float>(ctx->config.sampleRate);
+
+    synthParams.initialAudioParameters.volume = ctx->config.volume;
+    synthParams.initialAudioParameters.convolution = ctx->config.convolutionLevel;
+    synthParams.initialAudioParameters.airNoise = ctx->config.airNoise;
+
+    ctx->simulator->synthesizer().initialize(synthParams);
+
+    // Allocate audio conversion buffer (stereo)
+    ctx->conversionBufferSize = 4096 * 2; // Max frames * 2 channels
+    ctx->audioConversionBuffer = new (std::nothrow) int16_t[ctx->conversionBufferSize];
+    if (!ctx->audioConversionBuffer) {
+        ctx->setError("Failed to allocate audio conversion buffer");
+        delete ctx;
+        return ESIM_ERROR_AUDIO_BUFFER;
+    }
+
+    // Create compiler for script loading
+    ctx->compiler = new (std::nothrow) es_script::Compiler();
+    if (!ctx->compiler) {
+        ctx->setError("Failed to allocate script compiler");
+        delete ctx;
+        return ESIM_ERROR_SCRIPT_COMPILATION;
+    }
+
+    ctx->compiler->initialize();
+
+    *outHandle = ctx;
+    return ESIM_SUCCESS;
+}
+
+EngineSimResult EngineSimLoadScript(
+    EngineSimHandle handle,
+    const char* scriptPath)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (!scriptPath) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    // Compile the script
+    bool success = ctx->compiler->compile(scriptPath);
+    if (!success) {
+        ctx->setError("Script compilation failed: " + std::string(scriptPath));
+        return ESIM_ERROR_SCRIPT_COMPILATION;
+    }
+
+    // Execute and extract components
+    es_script::Compiler::Output output = ctx->compiler->execute();
+
+    if (!output.engine) {
+        ctx->setError("Script did not produce an engine object");
+        return ESIM_ERROR_SCRIPT_COMPILATION;
+    }
+
+    // Store components
+    ctx->engine = output.engine;
+    ctx->vehicle = output.vehicle;
+    ctx->transmission = output.transmission;
+
+    // Load simulation
+    ctx->simulator->loadSimulation(ctx->engine, ctx->vehicle, ctx->transmission);
+
+    // Place and initialize the engine physics
+    ctx->simulator->startFrame(1.0 / 60.0); // Initial frame to set up physics
+
+    return ESIM_SUCCESS;
+}
+
+EngineSimResult EngineSimStartAudioThread(
+    EngineSimHandle handle)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (!ctx->engine) {
+        ctx->setError("No engine loaded. Call EngineSimLoadScript first.");
+        return ESIM_ERROR_NOT_INITIALIZED;
+    }
+
+    ctx->simulator->startAudioRenderingThread();
+
+    return ESIM_SUCCESS;
+}
+
+EngineSimResult EngineSimDestroy(
+    EngineSimHandle handle)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+    delete ctx;
+
+    return ESIM_SUCCESS;
+}
+
+// ============================================================================
+// CONTROL FUNCTIONS
+// ============================================================================
+
+EngineSimResult EngineSimSetThrottle(
+    EngineSimHandle handle,
+    double position)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (position < 0.0 || position > 1.0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+    ctx->throttlePosition.store(position, std::memory_order_relaxed);
+
+    // Update the actual throttle in the vehicle/transmission system
+    if (ctx->vehicle && ctx->transmission) {
+        // Apply throttle to the transmission
+        // The transmission will handle the throttle input
+        if (ctx->transmission->getThrottle()) {
+            ctx->transmission->getThrottle()->m_throttlePosition = position;
+        }
+    }
+
+    return ESIM_SUCCESS;
+}
+
+EngineSimResult EngineSimUpdate(
+    EngineSimHandle handle,
+    double deltaTime)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (deltaTime <= 0.0 || deltaTime > 1.0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (!ctx->engine) {
+        ctx->setError("No engine loaded");
+        return ESIM_ERROR_NOT_INITIALIZED;
+    }
+
+    // Update throttle from atomic value
+    double throttle = ctx->throttlePosition.load(std::memory_order_relaxed);
+    if (ctx->transmission && ctx->transmission->getThrottle()) {
+        ctx->transmission->getThrottle()->m_throttlePosition = throttle;
+    }
+
+    // Run simulation frame
+    ctx->simulator->startFrame(deltaTime);
+
+    while (ctx->simulator->simulateStep()) {
+        // Process all simulation steps for this frame
+    }
+
+    ctx->simulator->endFrame();
+
+    // Update statistics
+    if (ctx->engine) {
+        ctx->stats.currentRPM = units::toRpm(ctx->engine->getSpeed());
+        ctx->stats.currentLoad = throttle;
+        ctx->stats.exhaustFlow = ctx->simulator->getTotalExhaustFlow();
+        ctx->stats.processingTimeMs = ctx->simulator->getAverageProcessingTime() * 1000.0;
+    }
+
+    return ESIM_SUCCESS;
+}
+
+// ============================================================================
+// AUDIO RENDERING (CRITICAL HOT PATH)
+// ============================================================================
+
+EngineSimResult EngineSimRender(
+    EngineSimHandle handle,
+    float* buffer,
+    int32_t frames,
+    int32_t* outSamplesWritten)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (!buffer || frames <= 0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (!ctx->engine) {
+        // No engine loaded - output silence
+        std::memset(buffer, 0, frames * 2 * sizeof(float));
+        if (outSamplesWritten) {
+            *outSamplesWritten = 0;
+        }
+        return ESIM_SUCCESS;
+    }
+
+    // Check buffer size
+    size_t requiredSize = frames * 2; // Stereo
+    if (requiredSize > ctx->conversionBufferSize) {
+        ctx->setError("Render buffer size exceeds internal buffer");
+        return ESIM_ERROR_AUDIO_BUFFER;
+    }
+
+    // Read audio from synthesizer (int16 format)
+    int samplesRead = ctx->simulator->readAudioOutput(
+        frames,
+        ctx->audioConversionBuffer
+    );
+
+    // Convert int16 to float32 [-1.0, 1.0]
+    // This is the CRITICAL PATH - must be FAST and allocation-free
+    constexpr float scale = 1.0f / 32768.0f;
+
+    for (int i = 0; i < samplesRead * 2; ++i) {
+        buffer[i] = static_cast<float>(ctx->audioConversionBuffer[i]) * scale;
+    }
+
+    // Fill remainder with silence if underrun
+    if (samplesRead < frames) {
+        std::memset(
+            buffer + (samplesRead * 2),
+            0,
+            (frames - samplesRead) * 2 * sizeof(float)
+        );
+    }
+
+    if (outSamplesWritten) {
+        *outSamplesWritten = samplesRead;
+    }
+
+    return ESIM_SUCCESS;
+}
+
+// ============================================================================
+// DIAGNOSTICS & TELEMETRY
+// ============================================================================
+
+EngineSimResult EngineSimGetStats(
+    EngineSimHandle handle,
+    EngineSimStats* outStats)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (!outStats) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+    *outStats = ctx->stats;
+
+    return ESIM_SUCCESS;
+}
+
+const char* EngineSimGetLastError(
+    EngineSimHandle handle)
+{
+    if (!validateHandle(handle)) {
+        return "Invalid handle";
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+    std::string error = ctx->getError();
+
+    // Return pointer to internal buffer (valid until next call)
+    return error.empty() ? nullptr : error.c_str();
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+const char* EngineSimGetVersion(void)
+{
+    return "engine-sim-bridge/1.0.0";
+}
+
+EngineSimResult EngineSimValidateConfig(
+    const EngineSimConfig* config)
+{
+    if (!config) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    // Validate sample rate
+    if (config->sampleRate < 8000 || config->sampleRate > 192000) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    // Validate buffer sizes
+    if (config->inputBufferSize < 64 || config->inputBufferSize > 8192) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    if (config->audioBufferSize < config->sampleRate / 2) {
+        return ESIM_ERROR_INVALID_PARAMETER; // At least 0.5 seconds
+    }
+
+    // Validate simulation frequency
+    if (config->simulationFrequency < 1000 || config->simulationFrequency > 100000) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    // Validate fluid steps
+    if (config->fluidSimulationSteps < 1 || config->fluidSimulationSteps > 64) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    // Validate latency
+    if (config->targetSynthesizerLatency < 0.001 || config->targetSynthesizerLatency > 1.0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    // Validate audio parameters
+    if (config->volume < 0.0f || config->volume > 10.0f) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    if (config->convolutionLevel < 0.0f || config->convolutionLevel > 1.0f) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    return ESIM_SUCCESS;
+}

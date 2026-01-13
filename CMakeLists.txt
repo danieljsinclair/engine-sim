@@ -191,6 +191,57 @@ if (PIRANHA_ENABLED)
         piranha)
 endif (PIRANHA_ENABLED)
 
+# ========================================================
+# ENGINE-SIM HEADLESS BRIDGE (Shared Library for .NET)
+# ========================================================
+option(BUILD_BRIDGE "Build headless bridge library (.dylib/.so)" ON)
+
+if (BUILD_BRIDGE AND PIRANHA_ENABLED)
+    add_library(engine-sim-bridge SHARED
+        # Bridge source
+        src/engine_sim_bridge.cpp
+
+        # Bridge header
+        include/engine_sim_bridge.h
+    )
+
+    target_link_libraries(engine-sim-bridge
+        engine-sim
+        engine-sim-script-interpreter
+        simple-2d-constraint-solver
+        csv-io
+    )
+
+    target_include_directories(engine-sim-bridge
+        PUBLIC include
+        PUBLIC dependencies/submodules
+    )
+
+    # Set library output properties
+    set_target_properties(engine-sim-bridge PROPERTIES
+        OUTPUT_NAME "enginesim"
+        VERSION 1.0.0
+        SOVERSION 1
+        PUBLIC_HEADER include/engine_sim_bridge.h
+    )
+
+    # Platform-specific settings
+    if (APPLE)
+        set_target_properties(engine-sim-bridge PROPERTIES
+            MACOSX_RPATH TRUE
+            INSTALL_NAME_DIR "@rpath"
+        )
+    endif()
+
+    # Install rules
+    install(TARGETS engine-sim-bridge
+        LIBRARY DESTINATION lib
+        PUBLIC_HEADER DESTINATION include
+    )
+endif()
+
+# ========================================================
+
 if (DISCORD_ENABLED)
     add_library(discord STATIC
         # Source files
