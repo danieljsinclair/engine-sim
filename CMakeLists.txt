@@ -136,8 +136,7 @@ add_library(engine-sim STATIC
 
 target_link_libraries(engine-sim
     simple-2d-constraint-solver
-    csv-io
-    delta-core)
+    csv-io)
 
 target_include_directories(engine-sim
     PUBLIC dependencies/submodules)
