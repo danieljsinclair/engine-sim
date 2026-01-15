@@ -8,8 +8,8 @@
 #include "../include/synthesizer.h"
 #include "../include/units.h"
 
-// Scripting includes
-#include "../scripting/include/compiler.h"
+// Scripting includes (disabled - piranha not available on macOS)
+// #include "../scripting/include/compiler.h"
 
 #include <string>
 #include <cstring>
@@ -40,8 +40,10 @@ struct EngineSimContext {
     int16_t* audioConversionBuffer;
     size_t conversionBufferSize;
 
+#ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
     // Scripting
     es_script::Compiler* compiler;
+#endif
 
     // Statistics
     EngineSimStats stats;
@@ -54,7 +56,9 @@ struct EngineSimContext {
         , throttlePosition(0.0)
         , audioConversionBuffer(nullptr)
         , conversionBufferSize(0)
+#ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
         , compiler(nullptr)
+#endif
     {
         std::memset(&config, 0, sizeof(config));
         std::memset(&stats, 0, sizeof(stats));
@@ -76,11 +80,13 @@ struct EngineSimContext {
         // Note: Engine, Vehicle, Transmission are owned by simulator
         // Don't delete them explicitly
 
+#ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
         if (compiler) {
             compiler->destroy();
             delete compiler;
             compiler = nullptr;
         }
+#endif
     }
 
     void setError(const std::string& msg) {
@@ -190,62 +196,25 @@ EngineSimResult EngineSimCreate(
         return ESIM_ERROR_AUDIO_BUFFER;
     }
 
+#ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
     // Create compiler for script loading
     ctx->compiler = new (std::nothrow) es_script::Compiler();
-    if (!ctx->compiler) {
+    if (\!ctx->compiler) {
         ctx->setError("Failed to allocate script compiler");
         delete ctx;
         return ESIM_ERROR_SCRIPT_COMPILATION;
     }
 
     ctx->compiler->initialize();
+#endif
 
     *outHandle = ctx;
     return ESIM_SUCCESS;
 }
 
-EngineSimResult EngineSimLoadScript(
-    EngineSimHandle handle,
-    const char* scriptPath)
-{
-    if (!validateHandle(handle)) {
-        return ESIM_ERROR_INVALID_HANDLE;
-    }
-
-    if (!scriptPath) {
-        return ESIM_ERROR_INVALID_PARAMETER;
-    }
-
-    EngineSimContext* ctx = getContext(handle);
-
-    // Compile the script
-    bool success = ctx->compiler->compile(scriptPath);
-    if (!success) {
-        ctx->setError("Script compilation failed: " + std::string(scriptPath));
-        return ESIM_ERROR_SCRIPT_COMPILATION;
-    }
-
-    // Execute and extract components
-    es_script::Compiler::Output output = ctx->compiler->execute();
-
-    if (!output.engine) {
-        ctx->setError("Script did not produce an engine object");
-        return ESIM_ERROR_SCRIPT_COMPILATION;
-    }
-
-    // Store components
-    ctx->engine = output.engine;
-    ctx->vehicle = output.vehicle;
-    ctx->transmission = output.transmission;
-
-    // Load simulation
-    ctx->simulator->loadSimulation(ctx->engine, ctx->vehicle, ctx->transmission);
-
-    // Place and initialize the engine physics
-    ctx->simulator->startFrame(1.0 / 60.0); // Initial frame to set up physics
-
-    return ESIM_SUCCESS;
-}
+#ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
+
+#endif
 
 EngineSimResult EngineSimStartAudioThread(
     EngineSimHandle handle)
@@ -298,13 +267,9 @@ EngineSimResult EngineSimSetThrottle(
     EngineSimContext* ctx = getContext(handle);
     ctx->throttlePosition.store(position, std::memory_order_relaxed);
 
-    // Update the actual throttle in the vehicle/transmission system
-    if (ctx->vehicle && ctx->transmission) {
-        // Apply throttle to the transmission
-        // The transmission will handle the throttle input
-        if (ctx->transmission->getThrottle()) {
-            ctx->transmission->getThrottle()->m_throttlePosition = position;
-        }
+    // Update the actual throttle in the engine
+    if (ctx->engine) {
+        ctx->engine->setThrottle(position);
     }
 
     return ESIM_SUCCESS;
@@ -331,8 +296,8 @@ EngineSimResult EngineSimUpdate(
 
     // Update throttle from atomic value
     double throttle = ctx->throttlePosition.load(std::memory_order_relaxed);
-    if (ctx->transmission && ctx->transmission->getThrottle()) {
-        ctx->transmission->getThrottle()->m_throttlePosition = throttle;
+    if (ctx->engine) {
+        ctx->engine->setThrottle(throttle);
     }
 
     // Run simulation frame

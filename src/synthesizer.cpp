@@ -1,7 +1,7 @@
 #include "../include/synthesizer.h"
 
 #include "../include/utilities.h"
-#include "../include/delta.h"
+// #include "../include/delta.h"  // Disabled - not needed for CLI build
 
 #include <cassert>
 #include <cmath>

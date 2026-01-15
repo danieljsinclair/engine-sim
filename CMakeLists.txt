@@ -137,7 +137,7 @@ add_library(engine-sim STATIC
 target_link_libraries(engine-sim
     simple-2d-constraint-solver
     csv-io
-    delta-basic)
+    delta-core)
 
 target_include_directories(engine-sim
     PUBLIC dependencies/submodules)
@@ -196,7 +196,7 @@ endif (PIRANHA_ENABLED)
 # ========================================================
 option(BUILD_BRIDGE "Build headless bridge library (.dylib/.so)" ON)
 
-if (BUILD_BRIDGE AND PIRANHA_ENABLED)
+if (BUILD_BRIDGE)
     add_library(engine-sim-bridge SHARED
         # Bridge source
         src/engine_sim_bridge.cpp
@@ -207,10 +207,15 @@ if (BUILD_BRIDGE AND PIRANHA_ENABLED)
 
     target_link_libraries(engine-sim-bridge
         engine-sim
-        engine-sim-script-interpreter
         simple-2d-constraint-solver
         csv-io
     )
+
+    if (PIRANHA_ENABLED)
+        target_link_libraries(engine-sim-bridge
+            engine-sim-script-interpreter
+        )
+    endif (PIRANHA_ENABLED)
 
     target_include_directories(engine-sim-bridge
         PUBLIC include

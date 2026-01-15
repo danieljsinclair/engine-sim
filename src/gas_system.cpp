@@ -26,11 +26,19 @@ void GasSystem::initialize(double P, double V, double T, const Mix &mix, int deg
     m_chokedFlowFactorCached = chokedFlowRate(degreesOfFreedom);
 }
 
+void GasSystem::initialize(double P, double V, double T, int degreesOfFreedom) {
+    initialize(P, V, T, Mix(), degreesOfFreedom);
+}
+
 void GasSystem::reset(double P, double T, const Mix &mix) {
     m_state.n_mol = P * volume() / (constants::R * T);
     m_state.E_k = T * (0.5 * m_degreesOfFreedom * m_state.n_mol * constants::R);
     m_state.mix = mix;
     m_state.momentum[0] = m_state.momentum[1] = 0;
+}
+
+void GasSystem::reset(double P, double T) {
+    reset(P, T, Mix());
 }
 
 void GasSystem::setVolume(double V) {
@@ -256,6 +264,10 @@ double GasSystem::gainN(double dn, double E_k_per_mol, const Mix &mix) {
     }
 
     return -dn;
+}
+
+double GasSystem::gainN(double dn, double E_k_per_mol) {
+    return gainN(dn, E_k_per_mol, Mix());
 }
 
 void GasSystem::dissipateExcessVelocity() {
@@ -551,6 +563,10 @@ double GasSystem::flow(double k_flow, double dt, double P_env, double T_env, con
     }
 
     return flow;
+}
+
+double GasSystem::flow(double k_flow, double dt, double P_env, double T_env) {
+    return flow(k_flow, dt, P_env, T_env, Mix());
 }
 
 double GasSystem::pressureEquilibriumMaxFlow(const GasSystem *b) const {
