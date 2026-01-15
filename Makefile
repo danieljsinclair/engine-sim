@@ -26,8 +26,15 @@ JOBS := 8
 
 all: build
 
+# Check and initialize submodules if needed
+SUBMODULE_CHECK := dependencies/submodules/delta-studio/CMakeLists.txt
+
+$(SUBMODULE_CHECK):
+	@git submodule update --init --recursive
+	@echo "Submodules initialized."
+
 # Configure CMake (run once or after CMakeLists changes)
-configure:
+configure: $(SUBMODULE_CHECK)
 	@echo "Configuring CMake for macOS x86_64..."
 	@mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR) && $(CMAKE) .. \
