@@ -55,33 +55,89 @@ The RPM hold feature will hold the engine at a specific RPM and also measure the
 I wrote this to demo in a [YouTube video](https://youtu.be/RKT-sKtR970), not as a real product. If you would like it to become a usable product please reach out to me or join my Discord (link can be found in the description of the aforementioned YouTube video). I use this codebase for my own purposes and so it might change frequently and without warning.
 
 ## How do I build it? (Ignore this section if you're not a developer!)
-**Note: this project currently only builds on Windows!**
+**Note: This project now builds on macOS (Intel and Apple Silicon), Linux, and BSD!**
 
 ### Step 1 - Clone the repository
-```git clone --recurse-submodules https://github.com/ange-yaghi/engine-sim```
+```bash
+git clone --recurse-submodules https://github.com/ange-yaghi/engine-sim
+```
 
 ### Step 2 - Install CMake
-Install the latest version of CMake [here](https://cmake.org/) if it's not already installed.
+Install CMake 3.10 or later [here](https://cmake.org/) if it's not already installed.
 
 ### Step 3 - Install Dependencies
-You will need to install the following dependencies and CMake will need to be able to locate them (ie. they need to be listed on your PATH):
+You will need to install the following dependencies and CMake will need to be able to locate them (i.e., they need to be listed on your PATH or in standard system locations):
 
-    1. SDL2
-    2. SDL2_image
-    3. Boost (make sure to build the optional dependencies)
-    4. Flex and Bison
+1. **SDL2** - Simple DirectMedia Layer
+2. **SDL2_image** - SDL2 image loading support
+3. **Boost** - Make sure to build with optional dependencies
+4. **Flex and Bison** - Required for Piranha DSL scripting (Bison 3.2+ recommended)
+
+#### Platform-Specific Notes:
+
+**macOS (Apple Silicon/Intel):**
+```bash
+brew install sdl2 sdl2_image boost bison flex
+```
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt-get install libsdl2-dev libsdl2-image-dev libboost-all-dev bison flex
+```
+
+**Linux (Fedora/RHEL):**
+```bash
+sudo dnf install SDL2-devel SDL2_image-devel boost-devel bison flex
+```
+
+**BSD:**
+```bash
+pkg install sdl2 sdl2_image boost bison flex
+```
 
 ### Step 4 - Build and Run
 From the root directory of the project, run the following commands:
 
-```
+```bash
 mkdir build
 cd build
 cmake ..
 cmake --build .
 ```
 
-If these steps are successful, a Visual Studio solution will be generated in ```build```. You can open this project with Visual Studio and then run the ```engine-sim-app``` project. If you encounter an error telling you that you're missing DLLs, you will have to copy those DLLs to your EXE's directory.
+#### Platform-Specific Build Details:
+
+**macOS/Linux/BSD:**
+- The build produces the `engine-sim-app` executable
+- A shared library `libenginesim.dylib` (macOS) or `libenginesim.so` (Linux/BSD) is also built for .NET interoperability
+- The build system enforces strict compiler warnings (`-Werror`) to maintain code quality
+- C++17 standard is required
+
+**Windows:**
+- A Visual Studio solution will be generated in `build`
+- Open the project with Visual Studio and run the `engine-sim-app` project
+- If you encounter DLL errors, copy the required DLLs to your EXE's directory
+
+### Architecture Notes
+
+**macOS:** Supports both `x86_64` (Intel) and `arm64` (Apple Silicon) architectures. The build system automatically detects your system architecture.
+
+**Linux/BSD:** Builds for your system's native architecture (typically `x86_64` or `arm64`).
+
+### Code Quality Improvements
+
+The build system now includes:
+- Compiler warning enforcement (`-Werror`) to catch potential issues early
+- C++17 standard compliance across all platforms
+- Cross-platform Piranha DSL scripting compatibility with Bison 3.2+ and Flex
+- Proper library versioning and symbol export controls for the shared library
+
+### .NET Interoperability
+
+The `libenginesim` shared library enables .NET applications to interact with the engine simulator in a headless mode. This allows for programmatic control of engine simulation without the GUI, useful for:
+- Automated testing
+- Server-side audio generation
+- Integration with other applications
 
 ## Patreon Supporters
 

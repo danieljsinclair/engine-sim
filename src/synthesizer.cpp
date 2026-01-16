@@ -285,8 +285,6 @@ int16_t Synthesizer::renderAudio(int inputSample) {
 
     float signal = 0;
     for (int i = 0; i < m_inputChannelCount; ++i) {
-        const float r_0 = 2.0 * ((double)rand() / RAND_MAX) - 1.0;
-
         const float jitteredSample =
             m_filters[i].jitterFilter.fast_f(m_inputChannels[i].transferBuffer[inputSample]);
 

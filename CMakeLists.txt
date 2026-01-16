@@ -24,6 +24,17 @@ project(engine-sim)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Enable compiler warnings as errors
+if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
+    add_compile_options(
+        -Wall
+        -Wextra
+        -Werror
+        -Wno-unused-parameter  # Many Piranha warnings
+        -Wno-sign-compare    # Platform differences
+    )
+endif()
+
 # ========================================================
 # GTEST
 

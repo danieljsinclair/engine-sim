@@ -59,7 +59,6 @@ void Intake::destroy() {
 
 void Intake::process(double dt) {
     const double ideal_afr = 0.8 * m_molecularAfr * 4;
-    const double current_afr = (m_system.mix().p_o2 + m_system.mix().p_inert) / m_system.mix().p_fuel;
 
     const double p_air = ideal_afr / (1 + ideal_afr);
     GasSystem::Mix fuelAirMix;

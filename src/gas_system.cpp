@@ -21,7 +21,6 @@ void GasSystem::initialize(double P, double V, double T, const Mix &mix, int deg
     m_state.mix = mix;
     m_state.momentum[0] = m_state.momentum[1] = 0;
 
-    const double hcr = heatCapacityRatio();
     m_chokedFlowLimit = chokedFlowLimit(degreesOfFreedom);
     m_chokedFlowFactorCached = chokedFlowRate(degreesOfFreedom);
 }
@@ -408,13 +407,11 @@ double GasSystem::flow(const FlowParameters &params) {
         source->m_chokedFlowLimit,
         source->m_chokedFlowFactorCached);
 
-    const double maxFlow = source->pressureEquilibriumMaxFlow(sink);
     flow = clamp(flow, 0.0, 0.9 * source->n());
 
     const double fraction = flow / source->n();
     const double fractionVolume = fraction * source->volume();
     const double fractionMass = fraction * source->mass();
-    const double remainingMass = (1 - fraction) * source->mass();
 
     if (flow != 0) {
         // - Stage 1
@@ -423,13 +420,9 @@ double GasSystem::flow(const FlowParameters &params) {
         const double E_k_bulk_src0 = source->bulkKineticEnergy();
         const double E_k_bulk_sink0 = sink->bulkKineticEnergy();
 
-        const double s0 = source->totalEnergy() + sink->totalEnergy();
-
         const double E_k_per_mol = source->kineticEnergyPerMol();
         sink->gainN(flow, E_k_per_mol, source->mix());
         source->loseN(flow, E_k_per_mol);
-
-        const double s1 = source->totalEnergy() + sink->totalEnergy();
 
         const double dp_x = source->m_state.momentum[0] * fraction;
         const double dp_y = source->m_state.momentum[1] * fraction;
@@ -464,7 +457,6 @@ double GasSystem::flow(const FlowParameters &params) {
     if (sinkCrossSection != 0) {
         const double sinkFractionVelocity =
             clamp((fractionVolume / sinkCrossSection) / params.dt, 0.0, c_sink);
-        const double sinkFractionVelocity_squared = sinkFractionVelocity * sinkFractionVelocity;
         const double sinkFractionVelocity_x = sinkFractionVelocity * dx;
         const double sinkFractionVelocity_y = sinkFractionVelocity * dy;
         const double sinkFractionMomentum_x = sinkFractionVelocity_x * fractionMass;
@@ -477,7 +469,6 @@ double GasSystem::flow(const FlowParameters &params) {
     if (sourceCrossSection != 0 && sourceMass != 0) {
         const double sourceFractionVelocity =
             clamp((fractionVolume / sourceCrossSection) / params.dt, 0.0, c_source);
-        const double sourceFractionVelocity_squared = sourceFractionVelocity * sourceFractionVelocity;
         const double sourceFractionVelocity_x = sourceFractionVelocity * dx;
         const double sourceFractionVelocity_y = sourceFractionVelocity * dy;
         const double sourceFractionMomentum_x = sourceFractionVelocity_x * fractionMass;

@@ -337,7 +337,6 @@ void PistonEngineSimulator::endFrame() {
     }
 
     const double frameTimestep = simulationSteps() * getTimestep();
-    const int cylinderCount = m_engine->getCylinderCount();
     for (int i = 0; i < m_engine->getIntakeCount(); ++i) {
         m_engine->getIntake(i)->m_flowRate /= frameTimestep;
     }
@@ -378,7 +377,6 @@ void PistonEngineSimulator::writeToSynthesizer() {
 
     static double lastValveLift[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    const double timestep = getTimestep();
     const int cylinderCount = m_engine->getCylinderCount();
     for (int i = 0; i < cylinderCount; ++i) {
         Piston *piston = m_engine->getPiston(i);

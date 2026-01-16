@@ -251,8 +251,6 @@ void CombustionChamber::flow(double dt) {
     Intake *intake = m_head->getIntake(m_piston->getCylinderIndex());
     ExhaustSystem *exhaust = m_head->getExhaustSystem(m_piston->getCylinderIndex());
 
-    const double start_n = m_system.n();
-
     GasSystem::FlowParameters flowParams;
     flowParams.dt = dt;
 
