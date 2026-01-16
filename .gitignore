@@ -15,3 +15,5 @@ compile_commands.json
 *.dylib
 *.a
 test_bridge
+gas_system_test_output.csv
+intake_stroke.csv
