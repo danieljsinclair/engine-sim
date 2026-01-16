@@ -8,8 +8,8 @@
 #include "../include/synthesizer.h"
 #include "../include/units.h"
 
-// Scripting includes (disabled - piranha not available on macOS)
-// #include "../scripting/include/compiler.h"
+// Scripting includes
+#include "../scripting/include/compiler.h"
 
 #include <string>
 #include <cstring>
@@ -199,7 +199,7 @@ EngineSimResult EngineSimCreate(
 #ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
     // Create compiler for script loading
     ctx->compiler = new (std::nothrow) es_script::Compiler();
-    if (\!ctx->compiler) {
+    if (!ctx->compiler) {
         ctx->setError("Failed to allocate script compiler");
         delete ctx;
         return ESIM_ERROR_SCRIPT_COMPILATION;
@@ -213,7 +213,7 @@ EngineSimResult EngineSimCreate(
 }
 
 #ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
-
+// Script loading functions to be implemented
 #endif
 
 EngineSimResult EngineSimStartAudioThread(

@@ -1,5 +1,5 @@
-# Engine-Sim Bridge Build Configuration for macOS x86_64
-# Target: M4 macOS (Apple Silicon) running in Rosetta x86_64 mode
+# Engine-Sim Bridge Build Configuration for macOS arm64
+# Target: M4 macOS (Apple Silicon) native
 
 # Build directory
 BUILD_DIR := build
@@ -7,13 +7,13 @@ BUILD_DIR := build
 # CMake configuration
 CMAKE := cmake
 CMAKE_GENERATOR := Unix Makefiles
-CMAKE_OSX_ARCHITECTURES := x86_64
+CMAKE_OSX_ARCHITECTURES := arm64
 CMAKE_BUILD_TYPE := Release
 CMAKE_POLICY_VERSION_MINIMUM := 3.5
 CMAKE_FLAGS := -Werror -Wall -Wextra
 
 # Engine-Sim options
-PIRANHA_ENABLED := OFF
+PIRANHA_ENABLED := ON
 DISCORD_ENABLED := OFF
 DTV := OFF
 
@@ -36,7 +36,7 @@ $(SUBMODULE_CHECK):
 
 # Configure CMake (run once or after CMakeLists changes)
 configure: $(SUBMODULE_CHECK)
-	@echo "Configuring CMake for macOS x86_64..."
+	@echo "Configuring CMake for macOS arm64 (Apple Silicon)..."
 	@mkdir -p $(BUILD_DIR)
 	cd $(BUILD_DIR) && $(CMAKE) .. \
 		-DCMAKE_OSX_ARCHITECTURES=$(CMAKE_OSX_ARCHITECTURES) \
