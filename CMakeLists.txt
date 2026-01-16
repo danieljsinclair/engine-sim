@@ -42,7 +42,8 @@ include(FetchContent)
 FetchContent_Declare(
     googletest
     URL
-    https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
+    https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -146,8 +147,8 @@ add_library(engine-sim STATIC
 )
 
 target_link_libraries(engine-sim
-    simple-2d-constraint-solver
-    csv-io)
+    PUBLIC simple-2d-constraint-solver
+    PUBLIC csv-io)
 
 target_include_directories(engine-sim
     PUBLIC dependencies/submodules)
@@ -197,8 +198,8 @@ if (PIRANHA_ENABLED)
         PUBLIC dependencies/submodules)
 
     target_link_libraries(engine-sim-script-interpreter
-        csv-io
-        piranha)
+        PUBLIC csv-io
+        PUBLIC piranha)
 endif (PIRANHA_ENABLED)
 
 # ========================================================
@@ -217,8 +218,6 @@ if (BUILD_BRIDGE)
 
     target_link_libraries(engine-sim-bridge
         engine-sim
-        simple-2d-constraint-solver
-        csv-io
     )
 
     if (PIRANHA_ENABLED)
@@ -376,6 +375,10 @@ add_executable(engine-sim-test
     test/gas_system_tests.cpp
     test/function_test.cpp
     test/synthesizer_tests.cpp
+)
+
+target_compile_options(engine-sim-test PRIVATE
+    -Wno-unused-variable
 )
 
 target_link_libraries(engine-sim-test
