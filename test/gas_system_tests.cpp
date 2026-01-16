@@ -74,7 +74,7 @@ TEST(GasSystemTests, PressureEqualizationEnergyConservation) {
     params.system_0 = &system1;
     params.system_1 = &system2;
 
-    const double dt = 1 / 100.0;
+    [[maybe_unused]] const double dt = 1 / 100.0;
     const int steps = 1000;
     for (int i = 1; i <= steps; ++i) {
         GasSystem::flow(params);
@@ -83,8 +83,8 @@ TEST(GasSystemTests, PressureEqualizationEnergyConservation) {
     const double finalSystemEnergy = system1.totalEnergy() + system2.totalEnergy();
     const double finalMolecules = system1.n() + system2.n();
 
-    const double p0 = system1.pressure();
-    const double p1 = system2.pressure();
+    [[maybe_unused]] const double p0 = system1.pressure();
+    [[maybe_unused]] const double p1 = system2.pressure();
 
     EXPECT_NEAR(finalMolecules, initialMolecules, 1E-6);
     EXPECT_NEAR(finalSystemEnergy, initialSystemEnergy, 1E-4);
@@ -119,7 +119,7 @@ TEST(GasSystemTests, DISABLED_PressureEquilibriumMaxFlow) {
 
     system1.changePressure(units::pressure(100.0, units::atm));
 
-    const double maxFlowOut = system1.pressureEquilibriumMaxFlow(&system2);
+    [[maybe_unused]] const double maxFlowOut = system1.pressureEquilibriumMaxFlow(&system2);
 
     system1.loseN(maxFlowIn, system1.kineticEnergyPerMol());
     system2.gainN(maxFlowIn, system1.kineticEnergyPerMol(), system1.mix());
@@ -138,7 +138,7 @@ TEST(GasSystemTests, DISABLED_PressureEquilibriumMaxFlowInfinite) {
     constexpr double P_env = units::pressure(2.0, units::atm);
     constexpr double T_env = units::celcius(25.0);
 
-    const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
+[[maybe_unused]]     const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
     const double E_k_per_mol = GasSystem::kineticEnergyPerMol(T_env, system1.degreesOfFreedom());
 
     system1.gainN(maxFlow, E_k_per_mol);
@@ -157,7 +157,7 @@ TEST(GasSystemTests, DISABLED_PressureEquilibriumMaxFlowInfiniteOverpressure) {
     constexpr double P_env = units::pressure(2.0, units::atm);
     constexpr double T_env = units::celcius(25.0);
 
-    const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
+[[maybe_unused]]     const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
 
     system1.loseN(maxFlow, GasSystem::kineticEnergyPerMol(T_env, 5));
 
@@ -175,9 +175,9 @@ TEST(GasSystemTests, FlowVariableVolume) {
     constexpr double P_env = units::pressure(2.0, units::atm);
     constexpr double T_env = units::celcius(25.0);
 
-    const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
+[[maybe_unused]]     const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
 
-    constexpr double dV = units::volume(1000000.0, units::cc) / 100;
+    [[maybe_unused]] constexpr double dV = units::volume(1000000.0, units::cc) / 100;
     for (int i = 0; i < 100; ++i) {
         const double flowRate0 = system1.flow(0.01, 1/60.0, units::pressure(0.1, units::atm), units::celcius(25.0));
         const double flowRate1 = system1.flow(0.01, 1 / 60.0, units::pressure(0.2, units::atm), units::celcius(25.0));
@@ -196,7 +196,7 @@ TEST(GasSystemTests, PowerStrokeTest) {
         units::celcius(2000.0)
     );
 
-    constexpr double dV = units::volume(1000000.0, units::cc) / 100;
+    [[maybe_unused]] constexpr double dV = units::volume(1000000.0, units::cc) / 100;
     for (int i = 0; i < 100; ++i) {
         const double flowRate0 = system1.flow(1.0, 1 / 60.0, units::pressure(1.0, units::atm), units::celcius(25.0));
         std::cerr << i << ", " << flowRate0 << ", " << system1.pressure() << "\n";
@@ -493,8 +493,8 @@ TEST(GasSystemTests, GasVelocityReducesStaticPressure) {
     const double finalSystemEnergy = system1.totalEnergy() + system2.totalEnergy();
     const double finalMolecules = system1.n() + system2.n();
 
-    const double p0 = system1.pressure();
-    const double p1 = system2.pressure();
+    [[maybe_unused]] const double p0 = system1.pressure();
+    [[maybe_unused]] const double p1 = system2.pressure();
 
     EXPECT_NEAR(finalMolecules, initialMolecules, 1E-6);
     EXPECT_NEAR(finalSystemEnergy, initialSystemEnergy, 1E-4);
