@@ -10,6 +10,7 @@ CMAKE_GENERATOR := Unix Makefiles
 CMAKE_OSX_ARCHITECTURES := x86_64
 CMAKE_BUILD_TYPE := Release
 CMAKE_POLICY_VERSION_MINIMUM := 3.5
+CMAKE_FLAGS := -Werror -Wall -Wextra
 
 # Engine-Sim options
 PIRANHA_ENABLED := OFF
@@ -43,7 +44,8 @@ configure: $(SUBMODULE_CHECK)
 		-DCMAKE_POLICY_VERSION_MINIMUM=$(CMAKE_POLICY_VERSION_MINIMUM) \
 		-DPIRANHA_ENABLED=$(PIRANHA_ENABLED) \
 		-DDISCORD_ENABLED=$(DISCORD_ENABLED) \
-		-DDTV=$(DTV)
+		-DDTV=$(DTV) \
+		$(CMAKE_FLAGS)
 	@echo "Configuration complete. Run 'make build' to compile."
 
 # Build the target

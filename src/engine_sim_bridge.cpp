@@ -418,8 +418,11 @@ const char* EngineSimGetLastError(
     EngineSimContext* ctx = getContext(handle);
     std::string error = ctx->getError();
 
-    // Return pointer to internal buffer (valid until next call)
-    return error.empty() ? nullptr : error.c_str();
+    // Use thread-local storage for allocation-free API
+    // Note: Not safe to call from multiple threads for same handle
+    static thread_local std::string error_buffer;
+    error_buffer = error;
+    return error_buffer.c_str();
 }
 
 // ============================================================================
