@@ -6,7 +6,7 @@
 	url = https://github.com/ange-yaghi/direct-to-video
 [submodule "dependencies/submodules/csv-io"]
 	path = dependencies/submodules/csv-io
-	url = https://github.com/ange-yaghi/csv-io
+	url = https://github.com/danieljsinclair/csv-io.git
 	branch = master
 [submodule "dependencies/submodules/piranha"]
 	path = dependencies/submodules/piranha
