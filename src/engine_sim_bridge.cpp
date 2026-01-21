@@ -7,6 +7,9 @@
 #include "../include/transmission.h"
 #include "../include/synthesizer.h"
 #include "../include/units.h"
+#include "../include/impulse_response.h"
+#include "../include/exhaust_system.h"
+#include "../include/wav_loader.h"
 
 // Scripting includes
 #include "../scripting/include/compiler.h"
@@ -125,6 +128,65 @@ static void setDefaultConfig(EngineSimConfig* config) {
 }
 
 // ============================================================================
+// IMPULSE RESPONSE LOADING
+// ============================================================================
+
+/**
+ * Load impulse responses for all exhaust systems in the engine.
+ * Delegates to WavLoader module for actual WAV file parsing (SRP).
+ */
+static bool loadImpulseResponses(
+    EngineSimContext* ctx,
+    const std::string& assetBasePath)
+{
+    if (!ctx->engine) {
+        return false;
+    }
+
+    const int exhaustCount = ctx->engine->getExhaustSystemCount();
+    for (int i = 0; i < exhaustCount; ++i) {
+        ExhaustSystem* exhaust = ctx->engine->getExhaustSystem(i);
+        if (!exhaust) continue;
+
+        ImpulseResponse* impulse = exhaust->getImpulseResponse();
+        if (!impulse) continue;
+
+        std::string filename = impulse->getFilename();
+        if (filename.empty()) {
+            continue;  // No impulse response specified
+        }
+
+        // Construct full path
+        std::string fullPath;
+        if (filename[0] == '/' || (filename.length() > 1 && filename[1] == ':')) {
+            // Absolute path
+            fullPath = filename;
+        } else {
+            // Relative path - combine with asset base path
+            fullPath = assetBasePath + "/" + filename;
+        }
+
+        // Load WAV file using WavLoader module
+        WavLoader::Result wavResult = WavLoader::load(fullPath);
+        if (!wavResult.valid) {
+            ctx->setError("Failed to load impulse response: " + fullPath);
+            // Continue with other exhaust systems rather than failing completely
+            continue;
+        }
+
+        // Initialize synthesizer with impulse response
+        ctx->simulator->synthesizer().initializeImpulseResponse(
+            wavResult.getData(),
+            static_cast<unsigned int>(wavResult.getSampleCount()),
+            static_cast<float>(impulse->getVolume()),
+            i
+        );
+    }
+
+    return true;
+}
+
+// ============================================================================
 // LIFECYCLE FUNCTIONS
 // ============================================================================
 
@@ -213,7 +275,101 @@ EngineSimResult EngineSimCreate(
 }
 
 #ifdef ATG_ENGINE_SIM_PIRANHA_ENABLED
-// Script loading functions to be implemented
+EngineSimResult EngineSimLoadScript(
+    EngineSimHandle handle,
+    const char* scriptPath,
+    const char* assetBasePath)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (!scriptPath || strlen(scriptPath) == 0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (!ctx->compiler) {
+        ctx->setError("Compiler not initialized. Piranha support not available.");
+        return ESIM_ERROR_SCRIPT_COMPILATION;
+    }
+
+    // Compile the script
+    if (!ctx->compiler->compile(scriptPath)) {
+        ctx->setError("Failed to compile script: " + std::string(scriptPath));
+        return ESIM_ERROR_SCRIPT_COMPILATION;
+    }
+
+    // Execute the compiled script
+    es_script::Compiler::Output output = ctx->compiler->execute();
+
+    // Create default vehicle if none specified
+    Vehicle* vehicle = output.vehicle;
+    if (vehicle == nullptr) {
+        Vehicle::Parameters vehParams;
+        vehParams.mass = units::mass(1597, units::kg);
+        vehParams.diffRatio = 3.42;
+        vehParams.tireRadius = units::distance(10, units::inch);
+        vehParams.dragCoefficient = 0.25;
+        vehParams.crossSectionArea = units::distance(6.0, units::foot) * units::distance(6.0, units::foot);
+        vehParams.rollingResistance = 2000.0;
+        vehicle = new Vehicle;
+        vehicle->initialize(vehParams);
+    }
+
+    // Create default transmission if none specified
+    Transmission* transmission = output.transmission;
+    if (transmission == nullptr) {
+        const double gearRatios[] = { 2.97, 2.07, 1.43, 1.00, 0.84, 0.56 };
+        Transmission::Parameters tParams;
+        tParams.GearCount = 6;
+        tParams.GearRatios = gearRatios;
+        tParams.MaxClutchTorque = units::torque(1000.0, units::ft_lb);
+        transmission = new Transmission;
+        transmission->initialize(tParams);
+    }
+
+    // Store references
+    ctx->engine = output.engine;
+    ctx->vehicle = vehicle;
+    ctx->transmission = transmission;
+
+    // Load the simulation
+    if (ctx->engine) {
+        ctx->simulator->loadSimulation(ctx->engine, ctx->vehicle, ctx->transmission);
+    } else {
+        ctx->setError("Script did not create an engine");
+        return ESIM_ERROR_LOAD_FAILED;
+    }
+
+    // Determine asset base path
+    std::string resolvedAssetPath;
+    if (assetBasePath != nullptr && strlen(assetBasePath) > 0) {
+        resolvedAssetPath = assetBasePath;
+    } else {
+        // Default: derive from script path (go up to assets/ directory)
+        std::string scriptPathStr(scriptPath);
+        size_t assetsPos = scriptPathStr.find("/assets/");
+        if (assetsPos != std::string::npos) {
+            // Extract path up to and including /assets/
+            resolvedAssetPath = scriptPathStr.substr(0, assetsPos + 8); // +8 for "/assets/"
+        } else {
+            // Fallback: use script's directory
+            size_t lastSlash = scriptPathStr.find_last_of('/');
+            if (lastSlash != std::string::npos) {
+                resolvedAssetPath = scriptPathStr.substr(0, lastSlash);
+            } else {
+                resolvedAssetPath = ".";  // Current directory
+            }
+        }
+    }
+
+    // Load impulse responses
+    loadImpulseResponses(ctx, resolvedAssetPath);
+
+    return ESIM_SUCCESS;
+}
 #endif
 
 EngineSimResult EngineSimStartAudioThread(
@@ -267,9 +423,10 @@ EngineSimResult EngineSimSetThrottle(
     EngineSimContext* ctx = getContext(handle);
     ctx->throttlePosition.store(position, std::memory_order_relaxed);
 
-    // Update the actual throttle in the engine
+    // Use the Governor abstraction for proper closed-loop feedback
+    // This ensures the Governor's safety features (full throttle at low RPM) are active
     if (ctx->engine) {
-        ctx->engine->setThrottle(position);
+        ctx->engine->setSpeedControl(position);
     }
 
     return ESIM_SUCCESS;
@@ -294,12 +451,6 @@ EngineSimResult EngineSimUpdate(
         return ESIM_ERROR_NOT_INITIALIZED;
     }
 
-    // Update throttle from atomic value
-    double throttle = ctx->throttlePosition.load(std::memory_order_relaxed);
-    if (ctx->engine) {
-        ctx->engine->setThrottle(throttle);
-    }
-
     // Run simulation frame
     ctx->simulator->startFrame(deltaTime);
 
@@ -310,6 +461,7 @@ EngineSimResult EngineSimUpdate(
     ctx->simulator->endFrame();
 
     // Update statistics
+    double throttle = ctx->throttlePosition.load(std::memory_order_relaxed);
     if (ctx->engine) {
         ctx->stats.currentRPM = units::toRpm(ctx->engine->getSpeed());
         ctx->stats.currentLoad = throttle;
@@ -478,6 +630,191 @@ EngineSimResult EngineSimValidateConfig(
     if (config->convolutionLevel < 0.0f || config->convolutionLevel > 1.0f) {
         return ESIM_ERROR_INVALID_PARAMETER;
     }
+
+    return ESIM_SUCCESS;
+}
+
+// ============================================================================
+// ADDITIONAL CONTROL FUNCTIONS
+// ============================================================================
+
+EngineSimResult EngineSimSetSpeedControl(
+    EngineSimHandle handle,
+    double position)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (position < 0.0 || position > 1.0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+    ctx->throttlePosition.store(position, std::memory_order_relaxed);
+
+    // Use the Governor abstraction for proper closed-loop feedback
+    // This ensures the Governor's safety features (full throttle at low RPM) are active
+    if (ctx->engine) {
+        ctx->engine->setSpeedControl(position);
+    }
+
+    return ESIM_SUCCESS;
+}
+
+EngineSimResult EngineSimSetStarterMotor(
+    EngineSimHandle handle,
+    int enabled)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (ctx->simulator) {
+        ctx->simulator->m_starterMotor.m_enabled = (enabled != 0);
+        return ESIM_SUCCESS;
+    }
+
+    return ESIM_ERROR_NOT_INITIALIZED;
+}
+
+EngineSimResult EngineSimSetIgnition(
+    EngineSimHandle handle,
+    int enabled)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (ctx->simulator && ctx->simulator->getEngine()) {
+        ctx->simulator->getEngine()->getIgnitionModule()->m_enabled = (enabled != 0);
+        return ESIM_SUCCESS;
+    }
+
+    return ESIM_ERROR_NOT_INITIALIZED;
+}
+
+EngineSimResult EngineSimShiftGear(
+    EngineSimHandle handle,
+    int gear)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (ctx->simulator && ctx->simulator->getTransmission()) {
+        ctx->simulator->getTransmission()->changeGear(gear);
+        return ESIM_SUCCESS;
+    }
+
+    return ESIM_ERROR_NOT_INITIALIZED;
+}
+
+EngineSimResult EngineSimSetClutch(
+    EngineSimHandle handle,
+    double pressure)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (pressure < 0.0 || pressure > 1.0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (ctx->simulator && ctx->simulator->getTransmission()) {
+        ctx->simulator->getTransmission()->setClutchPressure(pressure);
+        return ESIM_SUCCESS;
+    }
+
+    return ESIM_ERROR_NOT_INITIALIZED;
+}
+
+EngineSimResult EngineSimSetDyno(
+    EngineSimHandle handle,
+    int enabled)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (ctx->simulator) {
+        ctx->simulator->m_dyno.m_enabled = (enabled != 0);
+        return ESIM_SUCCESS;
+    }
+
+    return ESIM_ERROR_NOT_INITIALIZED;
+}
+
+EngineSimResult EngineSimSetDynoHold(
+    EngineSimHandle handle,
+    int enabled,
+    double speed)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (ctx->simulator) {
+        ctx->simulator->m_dyno.m_hold = (enabled != 0);
+        ctx->simulator->m_dyno.m_rotationSpeed = speed;
+        return ESIM_SUCCESS;
+    }
+
+    return ESIM_ERROR_NOT_INITIALIZED;
+}
+
+EngineSimResult EngineSimLoadImpulseResponse(
+    EngineSimHandle handle,
+    int exhaustIndex,
+    const int16_t* impulseData,
+    int sampleCount,
+    float volume)
+{
+    if (!validateHandle(handle)) {
+        return ESIM_ERROR_INVALID_HANDLE;
+    }
+
+    if (!impulseData || sampleCount <= 0) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    if (volume < 0.0f || volume > 10.0f) {
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    EngineSimContext* ctx = getContext(handle);
+
+    if (!ctx->engine) {
+        ctx->setError("No engine loaded. Call EngineSimLoadScript first.");
+        return ESIM_ERROR_NOT_INITIALIZED;
+    }
+
+    // Check if we have an exhaust system at this index
+    if (exhaustIndex < 0 || exhaustIndex >= ctx->engine->getExhaustSystemCount()) {
+        ctx->setError("Invalid exhaust index");
+        return ESIM_ERROR_INVALID_PARAMETER;
+    }
+
+    // Load the impulse response into the synthesizer
+    ctx->simulator->synthesizer().initializeImpulseResponse(
+        impulseData,
+        static_cast<unsigned int>(sampleCount),
+        volume,
+        exhaustIndex
+    );
 
     return ESIM_SUCCESS;
 }

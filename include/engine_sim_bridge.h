@@ -87,16 +87,19 @@ EngineSimResult EngineSimCreate(
  *
  * @param handle Simulator handle
  * @param scriptPath Absolute path to .mr file (UTF-8)
+ * @param assetBasePath Optional base path for assets (WAV files). If null, uses
+ *                      default path derived from scriptPath location.
  * @return ESIM_SUCCESS on success, error code otherwise
  *
  * Thread Safety: Must be called before audio thread starts
- * Allocations: Yes (loads engine model)
+ * Allocations: Yes (loads engine model and impulse responses)
  *
- * Example: "/Users/user/engine-sim/assets/engines/atg-video-2/01_subaru_ej25_eh.mr"
+ * Example: EngineSimLoadScript(handle, "/path/to/assets/engines/subaru.mr", "/path/to/assets")
  */
 EngineSimResult EngineSimLoadScript(
     EngineSimHandle handle,
-    const char* scriptPath
+    const char* scriptPath,
+    const char* assetBasePath  // Optional, null = use default
 );
 
 /**
@@ -145,6 +148,73 @@ EngineSimResult EngineSimDestroy(
 EngineSimResult EngineSimSetThrottle(
     EngineSimHandle handle,
     double position
+);
+
+/**
+ * Sets the speed control input (accelerator pedal).
+ * This invokes the Governor's feedback loop for dynamic throttle adjustment.
+ *
+ * @param handle Simulator handle
+ * @param position Speed control position (0.0 - 1.0)
+ * @return ESIM_SUCCESS on success
+ */
+EngineSimResult EngineSimSetSpeedControl(
+    EngineSimHandle handle,
+    double position
+);
+
+/**
+ * Enables or disables the starter motor.
+ *
+ * @param handle Simulator handle
+ * @param enabled 1 to enable starter, 0 to disable
+ * @return ESIM_SUCCESS on success
+ */
+EngineSimResult EngineSimSetStarterMotor(
+    EngineSimHandle handle,
+    int enabled
+);
+
+/**
+ * Enables or disables the ignition system.
+ */
+EngineSimResult EngineSimSetIgnition(
+    EngineSimHandle handle,
+    int enabled
+);
+
+/**
+ * Changes transmission gear.
+ * -1 = reverse, 0 = neutral, 1+ = forward gears
+ */
+EngineSimResult EngineSimShiftGear(
+    EngineSimHandle handle,
+    int gear
+);
+
+/**
+ * Sets clutch pressure (0.0 = disengaged, 1.0 = engaged).
+ */
+EngineSimResult EngineSimSetClutch(
+    EngineSimHandle handle,
+    double pressure
+);
+
+/**
+ * Enables or disables dynamometer.
+ */
+EngineSimResult EngineSimSetDyno(
+    EngineSimHandle handle,
+    int enabled
+);
+
+/**
+ * Sets dyno hold mode and target speed.
+ */
+EngineSimResult EngineSimSetDynoHold(
+    EngineSimHandle handle,
+    int enabled,
+    double speed
 );
 
 /**
@@ -251,6 +321,30 @@ const char* EngineSimGetVersion(void);
  */
 EngineSimResult EngineSimValidateConfig(
     const EngineSimConfig* config
+);
+
+/**
+ * Loads an impulse response for exhaust audio processing.
+ * Must be called after loading a script and before starting audio.
+ *
+ * @param handle Simulator handle
+ * @param exhaustIndex Exhaust system index (0-based)
+ * @param impulseData Pointer to int16 impulse response data
+ * @param sampleCount Number of samples in impulse data
+ * @param volume Volume scale factor (0.0 - 1.0)
+ * @return ESIM_SUCCESS on success, error code otherwise
+ *
+ * Thread Safety: Call from main thread after script load, before audio thread start
+ * Allocations: Loads impulse response data into synthesizer
+ *
+ * Note: Caller is responsible for managing impulse data lifetime
+ */
+EngineSimResult EngineSimLoadImpulseResponse(
+    EngineSimHandle handle,
+    int exhaustIndex,
+    const int16_t* impulseData,
+    int sampleCount,
+    float volume
 );
 
 #ifdef __cplusplus

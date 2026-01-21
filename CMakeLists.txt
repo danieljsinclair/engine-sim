@@ -144,6 +144,7 @@ add_library(engine-sim STATIC
     include/vehicle.h
     include/vehicle_drag_constraint.h
     include/vtec_valvetrain.h
+    include/wav_loader.h
 )
 
 target_link_libraries(engine-sim
@@ -151,7 +152,8 @@ target_link_libraries(engine-sim
     PUBLIC csv-io)
 
 target_include_directories(engine-sim
-    PUBLIC dependencies/submodules)
+    PUBLIC dependencies/submodules
+    PUBLIC dependencies)
 
 if (PIRANHA_ENABLED)
     add_library(engine-sim-script-interpreter STATIC
