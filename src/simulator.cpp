@@ -22,7 +22,10 @@ Simulator::Simulator() {
 
 Simulator::~Simulator() {
     assert(m_system == nullptr);
-    assert(m_dynoTorqueSamples == nullptr);
+    if (m_dynoTorqueSamples != nullptr) {
+        delete[] m_dynoTorqueSamples;
+        m_dynoTorqueSamples = nullptr;
+    }
 }
 
 void Simulator::initialize(const Parameters &params) {
@@ -166,6 +169,10 @@ void Simulator::endFrame() {
 
 void Simulator::destroy() {
     m_synthesizer.destroy();
+    if (m_dynoTorqueSamples != nullptr) {
+        delete[] m_dynoTorqueSamples;
+        m_dynoTorqueSamples = nullptr;
+    }
 }
 
 void Simulator::startAudioRenderingThread() {

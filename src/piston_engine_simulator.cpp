@@ -342,6 +342,9 @@ void PistonEngineSimulator::endFrame() {
 }
 
 void PistonEngineSimulator::destroy() {
+    // Destroy synthesizer first
+    synthesizer().destroy();
+
     if (m_system != nullptr) m_system->reset();
 
     if (m_crankConstraints != nullptr) delete[] m_crankConstraints;
