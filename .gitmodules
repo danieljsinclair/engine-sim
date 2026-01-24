@@ -1,6 +1,7 @@
 [submodule "dependencies/submodules/simple-2d-constraint-solver"]
 	path = dependencies/submodules/simple-2d-constraint-solver
 	url = https://github.com/danieljsinclair/simple-2d-constraint-solver.git
+	branch = master
 [submodule "dependencies/submodules/direct-to-video"]
 	path = dependencies/submodules/direct-to-video
 	url = https://github.com/ange-yaghi/direct-to-video
@@ -11,6 +12,8 @@
 [submodule "dependencies/submodules/piranha"]
 	path = dependencies/submodules/piranha
 	url = https://github.com/danieljsinclair/piranha.git
+	branch = master
 [submodule "dependencies/dr_libs"]
 	path = dependencies/dr_libs
 	url = https://github.com/mackron/dr_libs
+	branch = master
