@@ -17,3 +17,6 @@ compile_commands.json
 test_bridge
 gas_system_test_output.csv
 intake_stroke.csv
+
+# temporary output files
+*.log
