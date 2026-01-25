@@ -603,6 +603,44 @@ namespace es_script {
         ApplicationSettings m_settings;
     };
 
+    // Wrapper nodes for .mr file functions that call mutation nodes
+    // These need META_MUTATION flag to ensure they're evaluated in the first pass
+
+    class AddFlowSampleNode : public Node {
+    public:
+        AddFlowSampleNode() {
+            addFlag(Node::META_MUTATION);
+        }
+        virtual ~AddFlowSampleNode() { /* void */ }
+
+    protected:
+        virtual void registerInputs() {
+            addInput("lift", &m_lift);
+            addInput("flow", &m_flow);
+            addInput("this", &m_function, InputTarget::Type::Object);
+
+            Node::registerInputs();
+        }
+
+        virtual void _evaluate() {
+            readAllInputs();
+
+            // Check if m_function is valid (may be null during META_MUTATION pass)
+            if (m_function == nullptr) return;
+
+            // Convert units and call add_sample
+            // lift is in thou, flow is converted using k_28inH2O
+            double liftConverted = m_lift * units::thou;
+            double flowConverted = GasSystem::k_28inH2O(m_flow);
+            m_function->addSample(liftConverted, flowConverted);
+        }
+
+    protected:
+        double m_lift = 0;
+        double m_flow = 0;
+        FunctionNode *m_function = nullptr;
+    };
+
 } /* namespace es_script */
 
 #endif /* ATG_ENGINE_SIM_ACTIONS_H */

@@ -45,7 +45,10 @@ namespace es_script {
                 if (i.second.type == InputTarget::Type::Atomic
                     || i.second.type == InputTarget::Type::Object)
                 {
-                    (*m_inputMap[i.first].input)->fullCompute(i.second.memoryTarget);
+                    piranha::pNodeInput *input = i.second.input;
+                    if (input != nullptr && *input != nullptr) {
+                        (*input)->fullCompute(i.second.memoryTarget);
+                    }
                 }
             }
         }

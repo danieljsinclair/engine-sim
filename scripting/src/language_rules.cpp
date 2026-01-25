@@ -137,6 +137,7 @@ void es_script::LanguageRules::registerBuiltinNodeTypes() {
     registerBuiltinType<AddCylinderNode>("__engine_sim__add_cylinder");
     registerBuiltinType<AddSampleNode>("__engine_sim__add_sample");
     registerBuiltinType<AddLobeNode>("__engine_sim__add_lobe");
+    registerBuiltinType<AddFlowSampleNode>("__engine_sim__add_flow_sample");
     registerBuiltinType<SetCylinderHeadNode>("__engine_sim__set_cylinder_head");
     registerBuiltinType<ConnectIgnitionWireNode>("__engine_sim__connect_ignition_wire");
     registerBuiltinType<AddIgnitionModuleNode>("__engine_sim__add_ignition_module");

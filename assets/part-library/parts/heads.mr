@@ -2,13 +2,11 @@ private import "engine_sim.mr"
 
 units units()
 
-private node add_flow_sample {
+public node add_flow_sample => __engine_sim__add_flow_sample {
     input lift;
     input flow;
     input this;
     alias output __out: this;
-
-    this.add_sample(lift * units.thou, k_28inH2O(flow))
 }
 
 public node chevy_bbc_peanut_port_head {
