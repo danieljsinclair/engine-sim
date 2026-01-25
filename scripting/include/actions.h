@@ -43,7 +43,9 @@ namespace es_script {
 
     class AddRodJournalNode : public Node {
     public:
-        AddRodJournalNode() { /* void */ }
+        AddRodJournalNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddRodJournalNode() { /* void */ }
 
     protected:
@@ -67,7 +69,9 @@ namespace es_script {
 
     class AddSlaveJournalNode : public Node {
     public:
-        AddSlaveJournalNode() { /* void */ }
+        AddSlaveJournalNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddSlaveJournalNode() { /* void */ }
 
     protected:
@@ -91,7 +95,9 @@ namespace es_script {
 
     class AddCrankshaftNode : public Node {
     public:
-        AddCrankshaftNode() { /* void */ }
+        AddCrankshaftNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddCrankshaftNode() { /* void */ }
 
     protected:
@@ -115,7 +121,9 @@ namespace es_script {
 
     class AddCylinderBankNode : public Node {
     public:
-        AddCylinderBankNode() { /* void */ }
+        AddCylinderBankNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddCylinderBankNode() { /* void */ }
 
     protected:
@@ -139,7 +147,9 @@ namespace es_script {
 
     class AddCylinderNode : public Node {
     public:
-        AddCylinderNode() { /* void */ }
+        AddCylinderNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddCylinderNode() { /* void */ }
 
     protected:
@@ -186,7 +196,9 @@ namespace es_script {
 
     class AddSampleNode : public Node {
     public:
-        AddSampleNode() { /* void */ }
+        AddSampleNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddSampleNode() { /* void */ }
 
     protected:
@@ -212,7 +224,9 @@ namespace es_script {
 
     class AddLobeNode : public Node {
     public:
-        AddLobeNode() { /* void */ }
+        AddLobeNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddLobeNode() { /* void */ }
 
     protected:
@@ -370,7 +384,9 @@ namespace es_script {
 
     class ConnectIgnitionWireNode : public Node {
     public:
-        ConnectIgnitionWireNode() { /* void */ }
+        ConnectIgnitionWireNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~ConnectIgnitionWireNode() { /* void */ }
 
     protected:
@@ -396,7 +412,9 @@ namespace es_script {
 
     class AddIgnitionModuleNode : public Node {
     public:
-        AddIgnitionModuleNode() { /* void */ }
+        AddIgnitionModuleNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddIgnitionModuleNode() { /* void */ }
 
     protected:
@@ -420,7 +438,9 @@ namespace es_script {
 
     class GenerateHarmonicCamLobeNode : public Node {
     public:
-        GenerateHarmonicCamLobeNode() { /* void */ }
+        GenerateHarmonicCamLobeNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~GenerateHarmonicCamLobeNode() { /* void */ }
 
     protected:
@@ -472,7 +492,9 @@ namespace es_script {
 
     class AddGearNode : public Node {
     public:
-        AddGearNode() { /* void */ }
+        AddGearNode() {
+            addFlag(Node::META_MUTATION);
+        }
         virtual ~AddGearNode() { /* void */ }
 
     protected:
