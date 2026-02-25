@@ -4,6 +4,12 @@ workspace/
 # Build directory
 build/
 
+# dependencies
+_deps/
+
+# MacOS specific files
+.DS_Store
+
 # clangd cache and code completion files
 .cache
 compile_commands.json
@@ -20,3 +26,7 @@ intake_stroke.csv
 
 # temporary output files
 *.log
+
+# .NET build artifacts
+bin/
+obj/
