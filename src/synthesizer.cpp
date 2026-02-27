@@ -232,7 +232,7 @@ void Synthesizer::renderAudio() {
 
     m_cv0.wait(lk0, [this] {
         const bool inputAvailable =
-            m_inputChannels[0].data.size() > 0
+            hasAnyChannelData()
             && m_audioBuffer.size() < 2000;
         return !m_run || (inputAvailable && !m_processed);
     });
@@ -349,4 +349,24 @@ Synthesizer::AudioParameters Synthesizer::getAudioParameters() {
 void Synthesizer::setAudioParameters(const AudioParameters &params) {
     std::lock_guard<std::mutex> lock(m_lock0);
     m_audioParameters = params;
+}
+
+bool Synthesizer::hasAnyChannelData() const {
+    if (m_inputChannels == nullptr) return false;
+    for (int i = 0; i < m_inputChannelCount; ++i) {
+        if (m_inputChannels[i].data.size() > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Synthesizer::hasAllChannelsData() const {
+    if (m_inputChannels == nullptr || m_inputChannelCount == 0) return false;
+    for (int i = 0; i < m_inputChannelCount; ++i) {
+        if (m_inputChannels[i].data.size() == 0) {
+            return false;
+        }
+    }
+    return true;
 }

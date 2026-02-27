@@ -192,3 +192,77 @@ TEST(SynthesizerTests, DISABLED_SynthesizerSystemTest) {
 
     delete[] output;
 }
+
+TEST(SynthesizerTests, HasNoChannelDataInitially) {
+    Synthesizer synth;
+    setupStandardSynthesizer(synth);
+
+    EXPECT_FALSE(synth.hasAnyChannelData());
+    EXPECT_FALSE(synth.hasAllChannelsData());
+
+    synth.destroy();
+}
+
+TEST(SynthesizerTests, HasAnyChannelDataWithSingleChannel) {
+    Synthesizer synth;
+    setupStandardSynthesizer(synth);
+
+    synth.m_inputChannels[0].data.write(1.0f);
+
+    EXPECT_TRUE(synth.hasAnyChannelData());
+    EXPECT_FALSE(synth.hasAllChannelsData());
+
+    synth.destroy();
+}
+
+TEST(SynthesizerTests, HasAnyChannelDataWithPartialChannels) {
+    Synthesizer synth;
+    setupStandardSynthesizer(synth);
+
+    synth.m_inputChannels[0].data.write(1.0f);
+    synth.m_inputChannels[7].data.write(2.0f);
+
+    EXPECT_TRUE(synth.hasAnyChannelData());
+    EXPECT_FALSE(synth.hasAllChannelsData());
+
+    synth.destroy();
+}
+
+TEST(SynthesizerTests, HasAllChannelsData) {
+    Synthesizer synth;
+    setupStandardSynthesizer(synth);
+
+    for (int ch = 0; ch < 8; ++ch) {
+        synth.m_inputChannels[ch].data.write(1.0f);
+    }
+
+    EXPECT_TRUE(synth.hasAnyChannelData());
+    EXPECT_TRUE(synth.hasAllChannelsData());
+
+    synth.destroy();
+}
+
+TEST(SynthesizerTests, ChannelDataMethodsWithZeroChannels) {
+    Synthesizer::Parameters params;
+    params.audioBufferSize = 512 * 16;
+    params.audioSampleRate = 16;
+    params.inputBufferSize = 256;
+    params.inputChannelCount = 0;
+    params.inputSampleRate = 32;
+
+    Synthesizer::AudioParameters audioParams;
+    audioParams.airNoise = 0.0;
+    audioParams.inputSampleNoise = 0.0;
+    audioParams.levelerMaxGain = 1.0;
+    audioParams.levelerMinGain = 1.0;
+    audioParams.dF_F_mix = 0.0;
+    params.initialAudioParameters = audioParams;
+
+    Synthesizer synth;
+    synth.initialize(params);
+
+    EXPECT_FALSE(synth.hasAnyChannelData());
+    EXPECT_FALSE(synth.hasAllChannelsData());
+
+    synth.destroy();
+}

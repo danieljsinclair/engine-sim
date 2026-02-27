@@ -92,7 +92,10 @@ class Synthesizer {
         AudioParameters getAudioParameters();
         void setAudioParameters(const AudioParameters &params);
 
-    //protected:
+        bool hasAnyChannelData() const;
+        bool hasAllChannelsData() const;
+
+    public:
         ButterworthLowPassFilter<float> m_antialiasing;
         LevelingFilter m_levelingFilter;
         InputChannel *m_inputChannels;
