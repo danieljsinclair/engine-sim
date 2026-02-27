@@ -139,7 +139,7 @@ void Synthesizer::destroy() {
 }
 
 int Synthesizer::readAudioOutput(int samples, int16_t *buffer) {
-    std::lock_guard<std::mutex> lock(m_lock0);
+    std::unique_lock<std::mutex> lock(m_lock0);
 
     const int newDataLength = m_audioBuffer.size();
     if (newDataLength >= samples) {
@@ -154,6 +154,14 @@ int Synthesizer::readAudioOutput(int samples, int16_t *buffer) {
     }
     
     const int samplesConsumed = std::min(samples, newDataLength);
+
+    // release lock before notifying to avoid waking a thread while still
+    // holding the mutex
+    // unlocking here is deterministic: the destructor doesn't run until the
+    // end of the scope, but we call unlock() explicitly so the mutex is
+    // free before notify_one() is invoked.
+    lock.unlock();
+    m_cv0.notify_one();
 
     return samplesConsumed;
 }
