@@ -263,6 +263,40 @@ void Synthesizer::renderAudio() {
     m_cv0.notify_one();
 }
 
+void Synthesizer::renderAudioOnDemand() {
+    std::unique_lock<std::mutex> lk0(m_lock0);
+
+    const int n = std::min(
+        (int)m_inputChannels[0].data.size(),
+        (int)m_audioBufferSize);
+
+    if (n == 0) {
+        lk0.unlock();
+        return;
+    }
+
+    for (int i = 0; i < m_inputChannelCount; ++i) {
+        m_inputChannels[i].data.read(n, m_inputChannels[i].transferBuffer);
+    }
+
+    m_inputSamplesRead = n;
+    m_processed = true;
+
+    lk0.unlock();
+
+    for (int i = 0; i < m_inputChannelCount; ++i) {
+        m_filters[i].airNoiseLowPass.setCutoffFrequency(
+            static_cast<float>(m_audioParameters.airNoiseFrequencyCutoff), m_audioSampleRate);
+        m_filters[i].jitterFilter.setJitterScale(m_audioParameters.inputSampleNoise);
+    }
+
+    for (int i = 0; i < n; ++i) {
+        m_audioBuffer.write(renderAudio(i));
+    }
+
+    m_cv0.notify_one();
+}
+
 double Synthesizer::getLatency() const {
     return (double)m_latency / m_audioSampleRate;
 }

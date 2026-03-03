@@ -77,6 +77,7 @@ class Synthesizer {
 
         void audioRenderingThread();
         void renderAudio();
+        void renderAudioOnDemand();
 
         double getLatency() const;
 
