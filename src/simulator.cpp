@@ -208,7 +208,20 @@ double Simulator::getAverageOutputSignal() const {
     return 0.0;
 }
 
+#include <iostream>
+// ANSI color codes for terminal output
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
 void Simulator::initializeSynthesizer() {
+    // Skip if already initialized with proper parameters
+    // (Bridge initializes synthesizer with correct config before calling loadSimulation)
+    if (m_synthesizer.m_inputChannels != nullptr) {
+        std::cout << ANSI_COLOR_YELLOW << "WARNING: Synthesizer already initialized, reinitializing" << ANSI_COLOR_RESET << std::endl;
+        m_synthesizer.destroy();
+    }
+
     Synthesizer::Parameters synthParams;
     synthParams.audioBufferSize = 44100;
     synthParams.audioSampleRate = 44100;

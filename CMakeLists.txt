@@ -151,6 +151,8 @@ target_link_libraries(engine-sim
     PUBLIC simple-2d-constraint-solver
     PUBLIC csv-io)
 
+target_compile_options(engine-sim PRIVATE -g)
+
 target_include_directories(engine-sim
     PUBLIC dependencies/submodules
     PUBLIC dependencies)
