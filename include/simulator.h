@@ -32,7 +32,7 @@ public:
     virtual ~Simulator();
 
     virtual void initialize(const Parameters &params);
-    void loadSimulation(Engine *engine, Vehicle *vehicle, Transmission *transmission);
+    virtual void loadSimulation(Engine *engine, Vehicle *vehicle, Transmission *transmission);
     void releaseSimulation();
 
     virtual void startFrame(double dt);
