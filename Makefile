@@ -23,7 +23,7 @@ TARGET := engine-sim-bridge
 # Number of parallel jobs
 JOBS := 8
 
-.PHONY: all configure build clean rebuild stub test help
+.PHONY: all configure build clean rebuild test help
 
 all: build
 
@@ -54,18 +54,6 @@ build: configure
 	cd $(BUILD_DIR) && $(MAKE) -j$(JOBS) $(TARGET)
 	@echo "Build complete!"
 
-# Build stub fallback (always works)
-stub:
-	@echo "Building stub bridge library..."
-	clang++ -arch $(CMAKE_OSX_ARCHITECTURES) \
-		-fPIC \
-		-shared \
-		-std=c++17 \
-		-o libenginesim.dylib \
-		src/engine_sim_bridge_stub.cpp \
-		-Iinclude
-	@ls -lh libenginesim.dylib
-	@echo "Stub build complete!"
 
 # Clean build artifacts
 clean:
@@ -76,12 +64,12 @@ clean:
 # Full rebuild
 rebuild: clean all
 
-# Test the stub
-test: stub
-	@echo "Testing stub library..."
+# Test the build
+test: build
+	@echo "Testing library..."
 	@echo "Library: libenginesim.dylib"
 	otool -L libenginesim.dylib
-	@echo "If you see libenginesim.dylib above, the stub is ready for .NET wrapper testing"
+	@echo "If you see libenginesim.dylib above, the library is ready for .NET wrapper testing"
 
 help:
 	@echo "Engine-Sim Bridge Build System"
@@ -90,10 +78,9 @@ help:
 	@echo "  make          - Build engine-sim-bridge (full)"
 	@echo "  make configure - Configure CMake (run first)"
 	@echo "  make build     - Build after configure"
-	@echo "  make stub      - Build stub fallback (fast, always works)"
 	@echo "  make clean     - Remove build artifacts"
 	@echo "  make rebuild   - Clean and rebuild"
-	@echo "  make test      - Build and test stub"
+	@echo "  make test      - Build and test"
 	@echo "  make help      - Show this help"
 	@echo ""
 	@echo "Configuration:"
