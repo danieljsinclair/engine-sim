@@ -5,13 +5,8 @@
 
 #include <cmath>
 #include <assert.h>
-#include <chrono>
-#include <set>
 
 PistonEngineSimulator::PistonEngineSimulator() {
-    m_engine = nullptr;
-    m_transmission = nullptr;
-    m_vehicle = nullptr;
     m_delayFilters = nullptr;
 
     m_crankConstraints = nullptr;
@@ -37,10 +32,6 @@ PistonEngineSimulator::~PistonEngineSimulator() {
 
 void PistonEngineSimulator::loadSimulation(Engine *engine, Vehicle *vehicle, Transmission *transmission) {
     Simulator::loadSimulation(engine, vehicle, transmission);
-
-    m_engine = engine;
-    m_vehicle = vehicle;
-    m_transmission = transmission;
 
     const int crankCount = m_engine->getCrankshaftCount();
     const int cylinderCount = m_engine->getCylinderCount();

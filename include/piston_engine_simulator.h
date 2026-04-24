@@ -16,8 +16,6 @@
 
 #include "scs.h"
 
-#include <chrono>
-
 class PistonEngineSimulator : public Simulator {
     public:
         PistonEngineSimulator();
@@ -29,8 +27,8 @@ class PistonEngineSimulator : public Simulator {
         void endFrame() override;
         virtual void destroy() override;
 
-        void setFluidSimulationSteps(int steps) { m_fluidSimulationSteps = steps; }
-        int getFluidSimulationSteps() const { return m_fluidSimulationSteps; }
+        void setFluidSimulationSteps(int steps) override { m_fluidSimulationSteps = steps; }
+        int getFluidSimulationSteps() const override { return m_fluidSimulationSteps; }
         int getFluidSimulationFrequency() const { return m_fluidSimulationSteps * getSimulationFrequency(); }
 
         virtual double getAverageOutputSignal() const override;
@@ -55,15 +53,6 @@ class PistonEngineSimulator : public Simulator {
         atg_scs::RotationFrictionConstraint *m_crankshaftFrictionConstraints;
         atg_scs::LineConstraint *m_cylinderWallConstraints;
         atg_scs::LinkConstraint *m_linkConstraints;
-        atg_scs::RigidBody m_vehicleMass;
-        VehicleDragConstraint m_vehicleDrag;
-
-        std::chrono::steady_clock::time_point m_simulationStart;
-        std::chrono::steady_clock::time_point m_simulationEnd;
-
-        Engine *m_engine;
-        Transmission *m_transmission;
-        Vehicle *m_vehicle;
 
         double *m_exhaustFlowStagingBuffer;
 

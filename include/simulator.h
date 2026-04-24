@@ -57,6 +57,9 @@ public:
     void setSimulationFrequency(int frequency) { m_simulationFrequency = frequency; }
     int getSimulationFrequency() const { return m_simulationFrequency; }
 
+    virtual void setFluidSimulationSteps(int steps) { (void)steps; }
+    virtual int getFluidSimulationSteps() const { return 0; }
+
     double getTimestep() const { return 1.0 / m_simulationFrequency; }
 
     void setTargetSynthesizerLatency(double latency) { m_targetSynthesizerLatency = latency; }
@@ -87,22 +90,25 @@ protected:
 
     atg_scs::RigidBodySystem *m_system;
 
-private:
-    void updateFilteredEngineSpeed(double dt);
+    // Engine/vehicle/transmission stored via loadSimulation().
+    // Ownership remains with the caller — Simulator does not delete these.
+    Engine *m_engine;
+    Transmission *m_transmission;
+    Vehicle *m_vehicle;
 
-private:
+    // Physics rigid body and drag constraint for vehicle simulation.
+    // Used by subclasses in loadSimulation() for addToSystem() wiring.
     atg_scs::RigidBody m_vehicleMass;
     VehicleDragConstraint m_vehicleDrag;
+
+private:
+    void updateFilteredEngineSpeed(double dt);
 
     Synthesizer m_synthesizer;
 
     std::chrono::steady_clock::time_point m_simulationStart;
     std::chrono::steady_clock::time_point m_simulationEnd;
     int m_currentIteration;
-
-    Engine *m_engine;
-    Transmission *m_transmission;
-    Vehicle *m_vehicle;
 
     double m_physicsProcessingTime;
 

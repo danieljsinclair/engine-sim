@@ -209,15 +209,17 @@ endif (PIRANHA_ENABLED)
 # ========================================================
 # ENGINE-SIM HEADLESS BRIDGE (Shared Library for .NET)
 # ========================================================
-option(BUILD_BRIDGE "Build headless bridge library (.dylib/.so)" ON)
+# NOTE: The old C API bridge (engine_sim_bridge.h/cpp) has been removed.
+# The new bridge is now at the parent level (../engine-sim-bridge)
+# and uses ISimulator interface instead of C functions.
+
+option(BUILD_BRIDGE "Build headless bridge library (.dylib/.so)" OFF)
 
 if (BUILD_BRIDGE)
     add_library(engine-sim-bridge SHARED
-        # Bridge source
-        src/engine_sim_bridge.cpp
-
-        # Bridge header
-        include/engine_sim_bridge.h
+        # Bridge source - removed, now using ISimulator at parent level
+        # src/engine_sim_bridge.cpp
+        # include/engine_sim_bridge.h
     )
 
     target_link_libraries(engine-sim-bridge
@@ -240,7 +242,7 @@ if (BUILD_BRIDGE)
         OUTPUT_NAME "enginesim"
         VERSION 1.0.0
         SOVERSION 1
-        PUBLIC_HEADER include/engine_sim_bridge.h
+        # PUBLIC_HEADER include/engine_sim_bridge.h  # Removed
     )
 
     # Platform-specific settings
@@ -254,7 +256,7 @@ if (BUILD_BRIDGE)
     # Install rules
     install(TARGETS engine-sim-bridge
         LIBRARY DESTINATION lib
-        PUBLIC_HEADER DESTINATION include
+        # PUBLIC_HEADER DESTINATION include  # Removed
     )
 endif()
 

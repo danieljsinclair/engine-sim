@@ -30,3 +30,8 @@ intake_stroke.csv
 # .NET build artifacts
 bin/
 obj/
+
+# Temporary files
+*.log
+*.dat
+*.tmp
