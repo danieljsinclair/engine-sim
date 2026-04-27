@@ -18,7 +18,7 @@ DISCORD_ENABLED := OFF
 DTV := OFF
 
 # Target to build
-TARGET := engine-sim-bridge
+TARGET := engine-sim
 
 # Number of parallel jobs
 JOBS := 8
@@ -52,7 +52,7 @@ configure: $(SUBMODULE_CHECK)
 build: configure
 	@echo "Building $(TARGET)..."
 	cd $(BUILD_DIR) && $(MAKE) -j$(JOBS) $(TARGET)
-	@echo "Build complete!"
+	@echo "Build complete! Static library generated at build/libengine-sim.a"
 
 
 # Clean build artifacts
@@ -67,15 +67,14 @@ rebuild: clean all
 # Test the build
 test: build
 	@echo "Testing library..."
-	@echo "Library: libenginesim.dylib"
-	otool -L libenginesim.dylib
-	@echo "If you see libenginesim.dylib above, the library is ready for .NET wrapper testing"
+	@echo "Library: libengine-sim.a"
+	file libengine-sim.a
 
 help:
 	@echo "Engine-Sim Bridge Build System"
 	@echo ""
 	@echo "Targets:"
-	@echo "  make          - Build engine-sim-bridge (full)"
+	@echo "  make          - Build engine-sim static library (full)"
 	@echo "  make configure - Configure CMake (run first)"
 	@echo "  make build     - Build after configure"
 	@echo "  make clean     - Remove build artifacts"

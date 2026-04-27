@@ -274,6 +274,21 @@ if (DISCORD_ENABLED)
     )
 endif (DISCORD_ENABLED)
 
+# engine-sim-app (GUI) requires delta-studio (https://github.com/ange-yaghi/delta-studio).
+# delta-studio must be built and installed separately — it is NOT a submodule of this repo.
+# CI and headless builds target engine-sim + engine-sim-test and skip this target.
+# To build the full application locally, install delta-studio so its headers are on your include path.
+find_path(DELTA_STUDIO_INCLUDE_DIR
+    NAMES delta-studio/include/yds_core.h
+    DOC "delta-studio root include directory (https://github.com/ange-yaghi/delta-studio)")
+if(NOT DELTA_STUDIO_INCLUDE_DIR AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND WIN32)
+    message(WARNING
+        "delta-studio headers not found -- engine-sim-app (GUI) will not build correctly.\n"
+        "Install delta-studio from https://github.com/ange-yaghi/delta-studio and ensure "
+        "its parent directory is on your include path.\n"
+        "The engine-sim library and engine-sim-test build fine without it.")
+endif()
+
 add_executable(engine-sim-app WIN32
     # Source files
     src/main.cpp
@@ -383,9 +398,11 @@ add_executable(engine-sim-test
     test/synthesizer_tests.cpp
 )
 
-target_compile_options(engine-sim-test PRIVATE
-    -Wno-unused-variable
-)
+if(NOT MSVC)
+    target_compile_options(engine-sim-test PRIVATE
+        -Wno-unused-variable
+    )
+endif()
 
 target_link_libraries(engine-sim-test
     gtest_main

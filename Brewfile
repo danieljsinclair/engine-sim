@@ -1,0 +1,10 @@
+tap "homebrew/core"
+
+brew "bison"
+brew "cmake"
+brew "ninja"
+brew "ccache"
+brew "fmt"
+brew "flex"
+brew "boost"
+brew "blake3"

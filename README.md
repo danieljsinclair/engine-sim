@@ -57,6 +57,13 @@ I wrote this to demo in a [YouTube video](https://youtu.be/RKT-sKtR970), not as 
 ## How do I build it? (Ignore this section if you're not a developer!)
 **Note: This project now builds on macOS (Intel and Apple Silicon), Linux, and BSD!**
 
+**CI / headless builds:** The automated CI pipeline (Windows and macOS) builds the `engine-sim`
+library and `engine-sim-test` only — it does **not** build the GUI application (`engine-sim-app`).
+The GUI requires [delta-studio](https://github.com/ange-yaghi/delta-studio), which must be cloned,
+built, and installed separately as a system library; it is **not** a git submodule of this
+repository. To build `engine-sim-app` locally, install delta-studio first and ensure its headers
+are on your include path. Linux support is not yet CI-tested but builds the same way as macOS.
+
 ### Step 1 - Clone the repository
 ```bash
 git clone --recurse-submodules https://github.com/ange-yaghi/engine-sim
