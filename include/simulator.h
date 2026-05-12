@@ -35,9 +35,9 @@ public:
     virtual void loadSimulation(Engine *engine, Vehicle *vehicle, Transmission *transmission);
     void releaseSimulation();
 
-    virtual void startFrame(double dt);
+    virtual void startFrame(real_t dt);
     bool simulateStep();
-    virtual double getTotalExhaustFlow() const;
+    virtual real_t getTotalExhaustFlow() const;
     int readAudioOutput(int samples, int16_t *target);
     virtual void endFrame();
     virtual void destroy();
@@ -60,25 +60,25 @@ public:
     virtual void setFluidSimulationSteps(int steps) { (void)steps; }
     virtual int getFluidSimulationSteps() const { return 0; }
 
-    double getTimestep() const { return 1.0 / m_simulationFrequency; }
+    real_t getTimestep() const { return 1.0 / m_simulationFrequency; }
 
-    void setTargetSynthesizerLatency(double latency) { m_targetSynthesizerLatency = latency; }
-    double getTargetSynthesizerLatency() const { return m_targetSynthesizerLatency; }
-    double getSynthesizerInputLatency() const { return m_synthesizer.getLatency(); }
-    double getSynthesizerInputLatencyTarget() const;
+    void setTargetSynthesizerLatency(real_t latency) { m_targetSynthesizerLatency = latency; }
+    real_t getTargetSynthesizerLatency() const { return m_targetSynthesizerLatency; }
+    real_t getSynthesizerInputLatency() const { return m_synthesizer.getLatency(); }
+    real_t getSynthesizerInputLatencyTarget() const;
 
-    void setSimulationSpeed(double simSpeed) { m_simulationSpeed = simSpeed; }
-    double getSimulationSpeed() const { return m_simulationSpeed; }
+    void setSimulationSpeed(real_t simSpeed) { m_simulationSpeed = simSpeed; }
+    real_t getSimulationSpeed() const { return m_simulationSpeed; }
     int getCurrentIteration() const { return m_currentIteration; }
-    double getAverageProcessingTime() const { return m_physicsProcessingTime; }
+    real_t getAverageProcessingTime() const { return m_physicsProcessingTime; }
 
     int simulationSteps() const { return m_steps; }
 
-    virtual double getFilteredDynoTorque() const;
-    virtual double getDynoPower() const;
-    virtual double getAverageOutputSignal() const;
+    virtual real_t getFilteredDynoTorque() const;
+    virtual real_t getDynoPower() const;
+    virtual real_t getAverageOutputSignal() const;
 
-    double filteredEngineSpeed() const { return m_filteredEngineSpeed; }
+    real_t filteredEngineSpeed() const { return m_filteredEngineSpeed; }
 
     Dynamometer m_dyno;
     StarterMotor m_starterMotor;
@@ -102,7 +102,7 @@ protected:
     VehicleDragConstraint m_vehicleDrag;
 
 private:
-    void updateFilteredEngineSpeed(double dt);
+    void updateFilteredEngineSpeed(real_t dt);
 
     Synthesizer m_synthesizer;
 
@@ -110,17 +110,17 @@ private:
     std::chrono::steady_clock::time_point m_simulationEnd;
     int m_currentIteration;
 
-    double m_physicsProcessingTime;
+    real_t m_physicsProcessingTime;
 
     int m_simulationFrequency;
 
-    double m_targetSynthesizerLatency;
-    double m_simulationSpeed;
+    real_t m_targetSynthesizerLatency;
+    real_t m_simulationSpeed;
 
-    double *m_dynoTorqueSamples;
+    real_t *m_dynoTorqueSamples;
     int m_lastDynoTorqueSample;
 
-    double m_filteredEngineSpeed;
+    real_t m_filteredEngineSpeed;
 
     int m_steps;
 };

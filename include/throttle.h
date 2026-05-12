@@ -2,6 +2,7 @@
 #define ATG_ENGINE_SIM_THROTTLE_H
 
 #include "part.h"
+#include "types.h"
 
 class Engine;
 class Throttle {
@@ -9,13 +10,13 @@ public:
     Throttle();
     virtual ~Throttle();
 
-    virtual void setSpeedControl(double s);
-    virtual void update(double dt, Engine *engine);
+    virtual void setSpeedControl(real_t s);
+    virtual void update(real_t dt, Engine *engine);
 
-    inline double getSpeedControl() const { return m_speedControl; }
+    inline real_t getSpeedControl() const { return m_speedControl; }
 
 protected:
-    double m_speedControl;
+    real_t m_speedControl;
 };
 
 #endif /* ATG_ENGINE_SIM_THROTTLE_H */

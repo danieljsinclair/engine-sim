@@ -31,37 +31,37 @@ class Fuel {
 
         void initialize(const Parameters &params);
 
-        inline double getMolecularMass() const { return m_molecularMass; }
-        inline double getEnergyDensity() const { return m_energyDensity; }
-        inline double getDensity() const { return m_density; }
-        inline double getBurningEfficiencyRandomness() const { return m_burningEfficiencyRandomness; }
-        inline double getLowEfficiencyAttenuation() const { return m_lowEfficiencyAttenuation;  }
-        inline double getMaxBurningEfficiency() const { return m_maxBurningEfficiency; }
-        inline double getMaxTurbulenceEffect() const { return m_maxTurbulenceEffect; }
-        inline double getMaxDilutionEffect() const { return m_maxDilutionEffect; }
+        inline real_t getMolecularMass() const { return m_molecularMass; }
+        inline real_t getEnergyDensity() const { return m_energyDensity; }
+        inline real_t getDensity() const { return m_density; }
+        inline real_t getBurningEfficiencyRandomness() const { return m_burningEfficiencyRandomness; }
+        inline real_t getLowEfficiencyAttenuation() const { return m_lowEfficiencyAttenuation;  }
+        inline real_t getMaxBurningEfficiency() const { return m_maxBurningEfficiency; }
+        inline real_t getMaxTurbulenceEffect() const { return m_maxTurbulenceEffect; }
+        inline real_t getMaxDilutionEffect() const { return m_maxDilutionEffect; }
 
-        double flameSpeed(
-            double turbulence,
-            double molecularAfr,
-            double T,
-            double P,
-            double firingPressure,
-            double motoringPressure) const;
-        virtual double laminarBurningVelocity(double molecularAfr, double T, double P) const;
+        real_t flameSpeed(
+            real_t turbulence,
+            real_t molecularAfr,
+            real_t T,
+            real_t P,
+            real_t firingPressure,
+            real_t motoringPressure) const;
+        virtual real_t laminarBurningVelocity(real_t molecularAfr, real_t T, real_t P) const;
 
-        double getMolecularAfr() const { return m_molecularAfr; }
+        real_t getMolecularAfr() const { return m_molecularAfr; }
 
     protected:
         std::string m_name;
-        double m_molecularMass;
-        double m_energyDensity;
-        double m_density;
-        double m_molecularAfr;
-        double m_maxBurningEfficiency;
-        double m_burningEfficiencyRandomness;
-        double m_lowEfficiencyAttenuation;
-        double m_maxTurbulenceEffect;
-        double m_maxDilutionEffect;
+        real_t m_molecularMass;
+        real_t m_energyDensity;
+        real_t m_density;
+        real_t m_molecularAfr;
+        real_t m_maxBurningEfficiency;
+        real_t m_burningEfficiencyRandomness;
+        real_t m_lowEfficiencyAttenuation;
+        real_t m_maxTurbulenceEffect;
+        real_t m_maxDilutionEffect;
 
         Function *m_turbulenceToFlameSpeedRatio;
 };

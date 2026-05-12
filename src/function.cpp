@@ -29,7 +29,7 @@ Function::~Function() {
     assert(m_y == nullptr);
 }
 
-void Function::initialize(int size, double filterRadius, GaussianFilter *filter) {
+void Function::initialize(int size, real_t filterRadius, GaussianFilter *filter) {
     resize(size);
     m_size = 0;
     m_filterRadius = filterRadius;
@@ -40,12 +40,12 @@ void Function::initialize(int size, double filterRadius, GaussianFilter *filter)
 }
 
 void Function::resize(int newCapacity) {
-    double *new_x = new double[newCapacity];
-    double *new_y = new double[newCapacity];
+    real_t *new_x = new real_t[newCapacity];
+    real_t *new_y = new real_t[newCapacity];
 
     if (m_size > 0) {
-        memcpy(new_x, m_x, sizeof(double) * m_size);
-        memcpy(new_y, m_y, sizeof(double) * m_size);
+        memcpy(new_x, m_x, sizeof(real_t) * m_size);
+        memcpy(new_y, m_y, sizeof(real_t) * m_size);
     }
 
     delete[] m_x;
@@ -68,7 +68,7 @@ void Function::destroy() {
     m_size = 0;
 }
 
-void Function::addSample(double x, double y) {
+void Function::addSample(real_t x, real_t y) {
     if (m_size + 1 > m_capacity) {
         resize(m_capacity * 2 + 1);
     }
@@ -93,15 +93,15 @@ void Function::addSample(double x, double y) {
 
     const size_t sizeToCopy = (size_t)m_size - index - 1;
     if (sizeToCopy > 0) {
-        memmove(m_x + index + 1, m_x + index, sizeof(double) * sizeToCopy);
-        memmove(m_y + index + 1, m_y + index, sizeof(double) * sizeToCopy);
+        memmove(m_x + index + 1, m_x + index, sizeof(real_t) * sizeToCopy);
+        memmove(m_y + index + 1, m_y + index, sizeof(real_t) * sizeToCopy);
     }
 
     m_x[index] = x;
     m_y[index] = y;
 }
 
-double Function::sampleTriangle(double x) const {
+real_t Function::sampleTriangle(real_t x) const {
     x *= m_inputScale;
     const int closest = closestSample(x);
 
@@ -109,13 +109,13 @@ double Function::sampleTriangle(double x) const {
     else if (x >= m_x[m_size - 1]) return m_y[m_size - 1] * m_outputScale;
     else if (x <= m_x[0]) return m_y[0] * m_outputScale;
 
-    double sum = 0;
-    double totalWeight = 0;
+    real_t sum = 0;
+    real_t totalWeight = 0;
     for (int i = closest; i >= 0; --i) {
         if (m_x[i] > x) continue;
         if (std::abs(x - m_x[i]) > m_filterRadius) break;
 
-        const double w = triangle(m_x[i] - x);
+        const real_t w = triangle(m_x[i] - x);
         sum += w * m_y[i];
         totalWeight += w;
     }
@@ -124,7 +124,7 @@ double Function::sampleTriangle(double x) const {
         if (m_x[i] <= x) continue;
         if (std::abs(m_x[i] - x) > m_filterRadius) break;
 
-        const double w = triangle(m_x[i] - x);
+        const real_t w = triangle(m_x[i] - x);
         sum += w * m_y[i];
         totalWeight += w;
     }
@@ -134,22 +134,22 @@ double Function::sampleTriangle(double x) const {
         : 0;
 }
 
-double Function::sampleGaussian(double x) const {
+real_t Function::sampleGaussian(real_t x) const {
     x *= m_inputScale;
     const int closest = closestSample(x);
-    const double filterRadius = m_filterRadius * m_gaussianFilter->getRadius();
+    const real_t filterRadius = m_filterRadius * m_gaussianFilter->getRadius();
 
-    double sum = 0;
-    double totalWeight = 0;
+    real_t sum = 0;
+    real_t totalWeight = 0;
 
     if (m_size == 0) return 0;
     else if (x > m_x[m_size - 1]) {
-        const double w = m_gaussianFilter->evaluate(0);
+        const real_t w = m_gaussianFilter->evaluate(0);
         sum += w * m_y[m_size - 1];
         totalWeight += w;
     }
     else if (x < m_x[0]) {
-        const double w = m_gaussianFilter->evaluate(0);
+        const real_t w = m_gaussianFilter->evaluate(0);
         sum += w * m_y[0];
         totalWeight += w;
     }
@@ -157,7 +157,7 @@ double Function::sampleGaussian(double x) const {
     for (int i = closest; i >= 0; --i) {
         if (std::abs(x - m_x[i]) > filterRadius) break;
 
-        const double w = m_gaussianFilter->evaluate((m_x[i] - x) / m_filterRadius);
+        const real_t w = m_gaussianFilter->evaluate((m_x[i] - x) / m_filterRadius);
         sum += w * m_y[i];
         totalWeight += w;
     }
@@ -165,7 +165,7 @@ double Function::sampleGaussian(double x) const {
     for (int i = closest + 1; i < m_size; ++i) {
         if (std::abs(m_x[i] - x) > filterRadius) break;
 
-        const double w = m_gaussianFilter->evaluate((m_x[i] - x) / m_filterRadius);
+        const real_t w = m_gaussianFilter->evaluate((m_x[i] - x) / m_filterRadius);
         sum += w * m_y[i];
         totalWeight += w;
     }
@@ -183,7 +183,7 @@ bool Function::isOrdered() const {
     return true;
 }
 
-void Function::getDomain(double *x0, double *x1) {
+void Function::getDomain(real_t *x0, real_t *x1) {
     if (m_size == 0) {
         *x0 = *x1 = 0;
     }
@@ -193,16 +193,16 @@ void Function::getDomain(double *x0, double *x1) {
     }
 }
 
-void Function::getRange(double *y0, double *y1) {
+void Function::getRange(real_t *y0, real_t *y1) {
     *y0 = m_yMin;
     *y1 = m_yMax;
 }
 
-double Function::triangle(double x) const {
+real_t Function::triangle(real_t x) const {
     return (m_filterRadius - std::abs(x)) / m_filterRadius;
 }
 
-int Function::closestSample(double x) const {
+int Function::closestSample(real_t x) const {
     if (std::isnan(x)) {
         return 0;
     }

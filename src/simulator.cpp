@@ -45,7 +45,7 @@ void Simulator::initialize(const Parameters &params) {
         m_system = system;
     }
 
-    m_dynoTorqueSamples = new double[DynoTorqueSamples];
+    m_dynoTorqueSamples = new real_t[DynoTorqueSamples];
     for (int i = 0; i < DynoTorqueSamples; ++i) {
         m_dynoTorqueSamples[i] = 0.0;
     }
@@ -64,7 +64,7 @@ void Simulator::releaseSimulation() {
     destroy();
 }
 
-void Simulator::startFrame(double dt) {
+void Simulator::startFrame(real_t dt) {
     if (m_engine == nullptr) {
         m_steps = 0;
         return;
@@ -74,10 +74,10 @@ void Simulator::startFrame(double dt) {
     m_currentIteration = 0;
     m_synthesizer.setInputSampleRate(m_simulationFrequency * m_simulationSpeed);
 
-    const double timestep = getTimestep();
+    const real_t timestep = getTimestep();
     m_steps = (int)std::round((dt * m_simulationSpeed) / timestep);
 
-    const double targetLatency = getSynthesizerInputLatencyTarget();
+    const real_t targetLatency = getSynthesizerInputLatencyTarget();
     if (m_synthesizer.getLatency() < targetLatency) {
         m_steps = static_cast<int>((m_steps + 1) * 1.1);
     }
@@ -106,7 +106,7 @@ bool Simulator::simulateStep() {
         return false;
     }
 
-    const double timestep = getTimestep();
+    const real_t timestep = getTimestep();
     m_system->process(timestep, 1);
 
     m_engine->update(timestep);
@@ -155,7 +155,7 @@ bool Simulator::simulateStep() {
     return true;
 }
 
-double Simulator::getTotalExhaustFlow() const {
+real_t Simulator::getTotalExhaustFlow() const {
     return 0.0;
 }
 
@@ -183,14 +183,14 @@ void Simulator::endAudioRenderingThread() {
     m_synthesizer.endAudioRenderingThread();
 }
 
-double Simulator::getSynthesizerInputLatencyTarget() const {
+real_t Simulator::getSynthesizerInputLatencyTarget() const {
     return m_targetSynthesizerLatency;
 }
 
-double Simulator::getFilteredDynoTorque() const {
+real_t Simulator::getFilteredDynoTorque() const {
     if (m_dynoTorqueSamples == nullptr) return 0;
 
-    double averageTorque = 0;
+    real_t averageTorque = 0;
     for (int i = 0; i < DynoTorqueSamples; ++i) {
         averageTorque += m_dynoTorqueSamples[i];
     }
@@ -198,13 +198,13 @@ double Simulator::getFilteredDynoTorque() const {
     return averageTorque / DynoTorqueSamples;
 }
 
-double Simulator::getDynoPower() const {
+real_t Simulator::getDynoPower() const {
     return (m_engine != nullptr)
         ? getFilteredDynoTorque() * m_engine->getSpeed()
         : 0;
 }
 
-double Simulator::getAverageOutputSignal() const {
+real_t Simulator::getAverageOutputSignal() const {
     return 0.0;
 }
 
@@ -234,7 +234,7 @@ void Simulator::initializeSynthesizer() {
 void Simulator::simulateStep_() {
 }
 
-void Simulator::updateFilteredEngineSpeed(double dt) {
-    const double alpha = dt / (100 + dt);
+void Simulator::updateFilteredEngineSpeed(real_t dt) {
+    const real_t alpha = dt / (100 + dt);
     m_filteredEngineSpeed = alpha * m_filteredEngineSpeed + (1 - alpha) * m_engine->getRpm();
 }

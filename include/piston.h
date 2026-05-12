@@ -27,29 +27,29 @@ class Piston : public Part {
         inline void setCylinderConstraint(atg_scs::LineConstraint *constraint);
         virtual void destroy();
 
-        double relativeX() const;
-        double relativeY() const;
+        real_t relativeX() const;
+        real_t relativeY() const;
 
-        double calculateCylinderWallForce() const;
+        real_t calculateCylinderWallForce() const;
         inline ConnectingRod *getRod() const { return m_rod; }
         inline CylinderBank *getCylinderBank() const { return m_bank; }
         inline int getCylinderIndex() const { return m_cylinderIndex; }
-        inline double getCompressionHeight() const { return m_compressionHeight; }
-        inline double getDisplacement() const { return m_displacement; }
-        inline double getWristPinLocation() const { return m_wristPinLocation; }
-        inline double getMass() const { return m_mass; }
-        inline double getBlowbyK() const { return m_blowby_k; }
+        inline real_t getCompressionHeight() const { return m_compressionHeight; }
+        inline real_t getDisplacement() const { return m_displacement; }
+        inline real_t getWristPinLocation() const { return m_wristPinLocation; }
+        inline real_t getMass() const { return m_mass; }
+        inline real_t getBlowbyK() const { return m_blowby_k; }
 
     protected:
         ConnectingRod *m_rod;
         CylinderBank *m_bank;
         atg_scs::LineConstraint *m_cylinderConstraint;
         int m_cylinderIndex;
-        double m_compressionHeight;
-        double m_displacement;
-        double m_wristPinLocation;
-        double m_mass;
-        double m_blowby_k;
+        real_t m_compressionHeight;
+        real_t m_displacement;
+        real_t m_wristPinLocation;
+        real_t m_mass;
+        real_t m_blowby_k;
 };
 
 void Piston::setCylinderConstraint(atg_scs::LineConstraint *constraint) {

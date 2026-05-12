@@ -30,40 +30,40 @@ void ConnectingRod::initialize(const Parameters &params) {
     m_crankshaft = params.crankshaft;
     m_piston = params.piston;
 
-    m_rodJournalAngles = new double[params.rodJournals];
+    m_rodJournalAngles = new real_t[params.rodJournals];
     m_rodJournalCount = params.rodJournals;
     m_slaveThrow = params.slaveThrow;
     m_master = params.master;
 }
 
-double ConnectingRod::getBigEndLocal() const {
+real_t ConnectingRod::getBigEndLocal() const {
     return -(m_length / 2) + m_centerOfMass;
 }
 
-double ConnectingRod::getLittleEndLocal() const {
+real_t ConnectingRod::getLittleEndLocal() const {
     return (m_length / 2) - m_centerOfMass;
 }
 
-void ConnectingRod::setRodJournalAngle(int i, double angle) {
+void ConnectingRod::setRodJournalAngle(int i, real_t angle) {
     m_rodJournalAngles[i] = angle;
 }
 
-void ConnectingRod::getRodJournalPositionLocal(int i, double *x, double *y) {
-    const double journalAngle = getRodJournalAngle(i);
-    const double journal_x_local = std::cos(journalAngle) * m_slaveThrow;
-    const double journal_y_local = std::sin(journalAngle) * m_slaveThrow;
+void ConnectingRod::getRodJournalPositionLocal(int i, real_t *x, real_t *y) {
+    const real_t journalAngle = getRodJournalAngle(i);
+    const real_t journal_x_local = std::cos(journalAngle) * m_slaveThrow;
+    const real_t journal_y_local = std::sin(journalAngle) * m_slaveThrow;
 
     *x = journal_x_local;
     *y = journal_y_local + getBigEndLocal();
 }
 
-void ConnectingRod::getRodJournalPositionGlobal(int i, double *x, double *y) {
-    double lx, ly;
+void ConnectingRod::getRodJournalPositionGlobal(int i, real_t *x, real_t *y) {
+    real_t lx, ly;
     getRodJournalPositionLocal(i, &lx, &ly);
 
-    const double angle = m_body.theta;
-    const double dx = std::cos(angle);
-    const double dy = std::sin(angle);
+    const real_t angle = m_body.theta;
+    const real_t dx = std::cos(angle);
+    const real_t dy = std::sin(angle);
 
     *x = (dx * lx - dy * ly) + m_body.p_x;
     *y = (dy * lx + dx * ly) + m_body.p_y;

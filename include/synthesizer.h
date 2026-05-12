@@ -70,7 +70,7 @@ class Synthesizer {
 
         int readAudioOutput(int samples, int16_t *buffer);
 
-        void writeInput(const double *data);
+        void writeInput(const real_t *data);
         void endInputBlock();
 
         void waitProcessed();

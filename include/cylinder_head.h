@@ -34,8 +34,8 @@ class CylinderHead : public Part {
             ExhaustSystem *exhaustSystem = nullptr;
             Intake *intake = nullptr;
 
-            double soundAttenuation = 1.0;
-            double headerPrimaryLength = 0.0;
+            real_t soundAttenuation = 1.0;
+            real_t headerPrimaryLength = 0.0;
         };
 
     public:
@@ -45,34 +45,34 @@ class CylinderHead : public Part {
         void initialize(const Parameters &params);
         virtual void destroy();
 
-        double intakeFlowRate(int cylinder) const;
-        double exhaustFlowRate(int cylinder) const;
-        double intakeValveLift(int cylinder) const;
-        double exhaustValveLift(int cylinder) const;
+        real_t intakeFlowRate(int cylinder) const;
+        real_t exhaustFlowRate(int cylinder) const;
+        real_t intakeValveLift(int cylinder) const;
+        real_t exhaustValveLift(int cylinder) const;
 
         inline ExhaustSystem *getExhaustSystem(int cylinderIndex) const { return m_cylinders[cylinderIndex].exhaustSystem; }
         void setAllExhaustSystems(ExhaustSystem *system);
         void setExhaustSystem(int i, ExhaustSystem *system);
 
-        inline double getSoundAttenuation(int cylinderIndex) const { return m_cylinders[cylinderIndex].soundAttenuation; }
-        void setSoundAttenuation(int i, double soundAttenuation);
+        inline real_t getSoundAttenuation(int cylinderIndex) const { return m_cylinders[cylinderIndex].soundAttenuation; }
+        void setSoundAttenuation(int i, real_t soundAttenuation);
 
         inline Intake *getIntake(int cylinderIndex) const { return m_cylinders[cylinderIndex].intake; }
         void setAllIntakes(Intake *intake);
         void setIntake(int i, Intake *intake);
 
-        inline double getHeaderPrimaryLength(int cylinderIndex) const { return m_cylinders[cylinderIndex].headerPrimaryLength; }
-        void setAllHeaderPrimaryLengths(double length);
-        void setHeaderPrimaryLength(int i, double length);
+        inline real_t getHeaderPrimaryLength(int cylinderIndex) const { return m_cylinders[cylinderIndex].headerPrimaryLength; }
+        void setAllHeaderPrimaryLengths(real_t length);
+        void setHeaderPrimaryLength(int i, real_t length);
 
         inline bool getFlipDisplay() const { return m_flipDisplay; }
-        inline double getCombustionChamberVolume() const { return m_combustionChamberVolume; }
+        inline real_t getCombustionChamberVolume() const { return m_combustionChamberVolume; }
         inline CylinderBank *getCylinderBank() const { return m_bank; }
 
-        double getIntakeRunnerVolume() const { return m_intakeRunnerVolume; }
-        double getIntakeRunnerCrossSectionArea() const { return m_intakeRunnerCrossSectionArea; }
-        double getExhaustRunnerVolume() const { return m_exhaustRunnerVolume; }
-        double getExhaustRunnerCrossSectionArea() const { return m_exhaustRunnerCrossSectionArea; }
+        real_t getIntakeRunnerVolume() const { return m_intakeRunnerVolume; }
+        real_t getIntakeRunnerCrossSectionArea() const { return m_intakeRunnerCrossSectionArea; }
+        real_t getExhaustRunnerVolume() const { return m_exhaustRunnerVolume; }
+        real_t getExhaustRunnerCrossSectionArea() const { return m_exhaustRunnerCrossSectionArea; }
 
         Camshaft *getExhaustCamshaft();
         Camshaft *getIntakeCamshaft();
@@ -86,12 +86,12 @@ class CylinderHead : public Part {
         Function *m_exhaustPortFlow;
         Function *m_intakePortFlow;
 
-        double m_intakeRunnerVolume;
-        double m_intakeRunnerCrossSectionArea;
-        double m_exhaustRunnerVolume;
-        double m_exhaustRunnerCrossSectionArea;
+        real_t m_intakeRunnerVolume;
+        real_t m_intakeRunnerCrossSectionArea;
+        real_t m_exhaustRunnerVolume;
+        real_t m_exhaustRunnerCrossSectionArea;
 
-        double m_combustionChamberVolume;
+        real_t m_combustionChamberVolume;
         bool m_flipDisplay;
 };
 

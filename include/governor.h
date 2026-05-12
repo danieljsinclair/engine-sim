@@ -2,17 +2,18 @@
 #define ATG_ENGINE_SIM_GOVERNOR_H
 
 #include "throttle.h"
+#include "types.h"
 
 class Governor : public Throttle {
 public:
     struct Parameters {
-        double minSpeed;
-        double maxSpeed;
-        double minVelocity;
-        double maxVelocity;
-        double k_s;
-        double k_d;
-        double gamma;
+        real_t minSpeed;
+        real_t maxSpeed;
+        real_t minVelocity;
+        real_t maxVelocity;
+        real_t k_s;
+        real_t k_d;
+        real_t gamma;
     };
 
 public:
@@ -21,22 +22,22 @@ public:
 
     void initialize(const Parameters &params);
 
-    virtual void setSpeedControl(double s);
-    virtual void update(double dt, Engine *engine);
+    virtual void setSpeedControl(real_t s);
+    virtual void update(real_t dt, Engine *engine);
 
 protected:
-    double m_minSpeed;
-    double m_maxSpeed;
-    double m_minVelocity;
-    double m_maxVelocity;
-    double m_k_s;
-    double m_k_d;
-    double m_gamma;
+    real_t m_minSpeed;
+    real_t m_maxSpeed;
+    real_t m_minVelocity;
+    real_t m_maxVelocity;
+    real_t m_k_s;
+    real_t m_k_d;
+    real_t m_gamma;
 
-    double m_targetSpeed;
+    real_t m_targetSpeed;
 
-    double m_currentThrottle;
-    double m_velocity;
+    real_t m_currentThrottle;
+    real_t m_velocity;
 };
 
 #endif /* ATG_ENGINE_SIM_GOVERNOR_H */

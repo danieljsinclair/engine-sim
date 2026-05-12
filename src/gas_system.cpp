@@ -6,14 +6,14 @@
 #include <cmath>
 #include <cassert>
 
-void GasSystem::setGeometry(double width, double height, double dx, double dy) {
+void GasSystem::setGeometry(real_t width, real_t height, real_t dx, real_t dy) {
     m_width = width;
     m_height = height;
     m_dx = dx;
     m_dy = dy;
 }
 
-void GasSystem::initialize(double P, double V, double T, const Mix &mix, int degreesOfFreedom) {
+void GasSystem::initialize(real_t P, real_t V, real_t T, const Mix &mix, int degreesOfFreedom) {
     m_degreesOfFreedom = degreesOfFreedom;
     m_state.n_mol = P * V / (constants::R * T);
     m_state.V = V;
@@ -25,50 +25,50 @@ void GasSystem::initialize(double P, double V, double T, const Mix &mix, int deg
     m_chokedFlowFactorCached = chokedFlowRate(degreesOfFreedom);
 }
 
-void GasSystem::initialize(double P, double V, double T, int degreesOfFreedom) {
+void GasSystem::initialize(real_t P, real_t V, real_t T, int degreesOfFreedom) {
     initialize(P, V, T, Mix(), degreesOfFreedom);
 }
 
-void GasSystem::reset(double P, double T, const Mix &mix) {
+void GasSystem::reset(real_t P, real_t T, const Mix &mix) {
     m_state.n_mol = P * volume() / (constants::R * T);
     m_state.E_k = T * (0.5 * m_degreesOfFreedom * m_state.n_mol * constants::R);
     m_state.mix = mix;
     m_state.momentum[0] = m_state.momentum[1] = 0;
 }
 
-void GasSystem::reset(double P, double T) {
+void GasSystem::reset(real_t P, real_t T) {
     reset(P, T, Mix());
 }
 
-void GasSystem::setVolume(double V) {
+void GasSystem::setVolume(real_t V) {
     return changeVolume(V - m_state.V);
 }
 
-void GasSystem::setN(double n) {
+void GasSystem::setN(real_t n) {
     m_state.E_k = kineticEnergy(n);
     m_state.n_mol = n;
 }
 
-void GasSystem::changeVolume(double dV) {
-    const double V = this->volume();
-    const double L = std::pow(V + dV, 1 / 3.0);
-    const double surfaceArea = (L * L);
-    const double dL = -dV / surfaceArea;
-    const double W = dL * pressure() * surfaceArea;
+void GasSystem::changeVolume(real_t dV) {
+    const real_t V = this->volume();
+    const real_t L = std::pow(V + dV, 1 / 3.0);
+    const real_t surfaceArea = (L * L);
+    const real_t dL = -dV / surfaceArea;
+    const real_t W = dL * pressure() * surfaceArea;
 
     m_state.V += dV;
     m_state.E_k += W;
 }
 
-void GasSystem::changePressure(double dP) {
+void GasSystem::changePressure(real_t dP) {
     m_state.E_k += dP * volume() * m_degreesOfFreedom * 0.5;
 }
 
-void GasSystem::changeTemperature(double dT) {
+void GasSystem::changeTemperature(real_t dT) {
     m_state.E_k += dT * 0.5 * m_degreesOfFreedom * n() * constants::R;
 }
 
-void GasSystem::changeEnergy(double dE) {
+void GasSystem::changeEnergy(real_t dE) {
     m_state.E_k += dE;
 }
 
@@ -76,52 +76,52 @@ void GasSystem::changeMix(const Mix &mix) {
     m_state.mix = mix;
 }
 
-void GasSystem::injectFuel(double n) {
-    const double n_fuel = this->n_fuel() + n;
-    const double p_fuel = n_fuel / this->n();
+void GasSystem::injectFuel(real_t n) {
+    const real_t n_fuel = this->n_fuel() + n;
+    const real_t p_fuel = n_fuel / this->n();
     m_state.mix.p_fuel = p_fuel;
 }
 
-void GasSystem::changeTemperature(double dT, double n) {
+void GasSystem::changeTemperature(real_t dT, real_t n) {
     m_state.E_k += dT * 0.5 * m_degreesOfFreedom * n * constants::R;
 }
 
-double GasSystem::react(double n, const Mix &mix) {
-    const double l_n_fuel = mix.p_fuel * n;
-    const double l_n_o2 = mix.p_o2 * n;
+real_t GasSystem::react(real_t n, const Mix &mix) {
+    const real_t l_n_fuel = mix.p_fuel * n;
+    const real_t l_n_o2 = mix.p_o2 * n;
 
-    const double system_n_fuel = n_fuel();
-    const double system_n_o2 = n_o2();
-    const double system_n_inert = n_inert();
-    const double system_n = this->n();
+    const real_t system_n_fuel = n_fuel();
+    const real_t system_n_o2 = n_o2();
+    const real_t system_n_inert = n_inert();
+    const real_t system_n = this->n();
 
     // Assuming the following reaction:
     // 25[O2] + 2[C8H16] -> 16[CO2] + 18[H2O]
-    constexpr double ideal_o2_ratio = 25.0 / 2;
-    constexpr double ideal_fuel_ratio = 2.0 / 25;
-    constexpr double output_input_ratio = (16.0 + 18.0) / (25 + 2);
+    constexpr real_t ideal_o2_ratio = 25.0 / 2;
+    constexpr real_t ideal_fuel_ratio = 2.0 / 25;
+    constexpr real_t output_input_ratio = (16.0 + 18.0) / (25 + 2);
 
-    const double ideal_fuel_n = ideal_fuel_ratio * l_n_o2;
-    const double ideal_o2_n = ideal_o2_ratio * l_n_fuel;
+    const real_t ideal_fuel_n = ideal_fuel_ratio * l_n_o2;
+    const real_t ideal_o2_n = ideal_o2_ratio * l_n_fuel;
     
-    const double a_n_fuel = std::fmin(
+    const real_t a_n_fuel = std::fmin(
         std::fmin(system_n_fuel, l_n_fuel),
         ideal_fuel_n);
-    const double a_n_o2 = std::fmin(
+    const real_t a_n_o2 = std::fmin(
         std::fmin(system_n_o2, l_n_o2),
         ideal_o2_n);
 
-    const double reactants_n = a_n_fuel + a_n_o2;
-    const double products_n = output_input_ratio * reactants_n;
-    const double dn = products_n - reactants_n;
+    const real_t reactants_n = a_n_fuel + a_n_o2;
+    const real_t products_n = output_input_ratio * reactants_n;
+    const real_t dn = products_n - reactants_n;
 
     m_state.n_mol += dn;
 
     // Adjust mix
-    const double new_system_n_fuel = system_n_fuel - a_n_fuel;
-    const double new_system_n_o2 = system_n_o2 - a_n_o2;
-    const double new_system_n_inert = system_n_inert + products_n;
-    const double new_system_n = system_n + dn;
+    const real_t new_system_n_fuel = system_n_fuel - a_n_fuel;
+    const real_t new_system_n_o2 = system_n_o2 - a_n_o2;
+    const real_t new_system_n_inert = system_n_inert + products_n;
+    const real_t new_system_n = system_n + dn;
 
     if (new_system_n != 0) {
         m_state.mix.p_fuel = new_system_n_fuel / new_system_n;
@@ -135,21 +135,21 @@ double GasSystem::react(double n, const Mix &mix) {
     return a_n_fuel;
 }
 
-double GasSystem::flowConstant(
-    double targetFlowRate,
-    double P,
-    double pressureDrop,
-    double T,
-    double hcr)
+real_t GasSystem::flowConstant(
+    real_t targetFlowRate,
+    real_t P,
+    real_t pressureDrop,
+    real_t T,
+    real_t hcr)
 {
-    const double T_0 = T;
-    const double p_0 = P, p_T = P - pressureDrop; // p_0 = upstream pressure
+    const real_t T_0 = T;
+    const real_t p_0 = P, p_T = P - pressureDrop; // p_0 = upstream pressure
 
-    const double chokedFlowLimit =
+    const real_t chokedFlowLimit =
         std::pow((2.0 / (hcr + 1)), hcr / (hcr - 1));
-    const double p_ratio = p_T / p_0;
+    const real_t p_ratio = p_T / p_0;
 
-    double flowRate = 0;
+    real_t flowRate = 0;
     if (p_ratio <= chokedFlowLimit) {
         // Choked flow
         flowRate = std::sqrt(hcr);
@@ -167,7 +167,7 @@ double GasSystem::flowConstant(
     return targetFlowRate / flowRate;
 }
 
-double GasSystem::k_28inH2O(double flowRateScfm) {
+real_t GasSystem::k_28inH2O(real_t flowRateScfm) {
     return flowConstant(
         units::flow(flowRateScfm, units::scfm),
         units::pressure(1.0, units::atm),
@@ -177,7 +177,7 @@ double GasSystem::k_28inH2O(double flowRateScfm) {
     );
 }
 
-double GasSystem::k_carb(double flowRateScfm) {
+real_t GasSystem::k_carb(real_t flowRateScfm) {
     return flowConstant(
         units::flow(flowRateScfm, units::scfm),
         units::pressure(1.0, units::atm),
@@ -187,21 +187,21 @@ double GasSystem::k_carb(double flowRateScfm) {
     );
 }
 
-double GasSystem::flowRate(
-    double k_flow,
-    double P0,
-    double P1,
-    double T0,
-    double T1,
-    double hcr,
-    double chokedFlowLimit,
-    double chokedFlowRateCached)
+real_t GasSystem::flowRate(
+    real_t k_flow,
+    real_t P0,
+    real_t P1,
+    real_t T0,
+    real_t T1,
+    real_t hcr,
+    real_t chokedFlowLimit,
+    real_t chokedFlowRateCached)
 {
     if (k_flow == 0) return 0;
 
-    double direction;
-    double T_0;
-    double p_0, p_T; // p_0 = upstream pressure
+    real_t direction;
+    real_t T_0;
+    real_t p_0, p_T; // p_0 = upstream pressure
     if (P0 > P1) {
         direction = 1.0;
         T_0 = T0;
@@ -215,15 +215,15 @@ double GasSystem::flowRate(
         p_T = P0;
     }
 
-    const double p_ratio = p_T / p_0;
-    double flowRate = 0;
+    const real_t p_ratio = p_T / p_0;
+    real_t flowRate = 0;
     if (p_ratio <= chokedFlowLimit) {
         // Choked flow
         flowRate = chokedFlowRateCached;
         flowRate /= std::sqrt(constants::R * T_0);
     }
     else {
-        const double s = std::pow(p_ratio, 1 / hcr);
+        const real_t s = std::pow(p_ratio, 1 / hcr);
 
         flowRate = (2 * hcr) / (hcr - 1);
         flowRate *= s * (s - p_ratio);
@@ -235,7 +235,7 @@ double GasSystem::flowRate(
     return flowRate * k_flow;
 }
 
-double GasSystem::loseN(double dn, double E_k_per_mol) {
+real_t GasSystem::loseN(real_t dn, real_t E_k_per_mol) {
     m_state.E_k -= E_k_per_mol * dn;
     m_state.n_mol -= dn;
 
@@ -246,9 +246,9 @@ double GasSystem::loseN(double dn, double E_k_per_mol) {
     return dn;
 }
 
-double GasSystem::gainN(double dn, double E_k_per_mol, const Mix &mix) {
-    const double next_n = m_state.n_mol + dn;
-    const double current_n = m_state.n_mol;
+real_t GasSystem::gainN(real_t dn, real_t E_k_per_mol, const Mix &mix) {
+    const real_t next_n = m_state.n_mol + dn;
+    const real_t current_n = m_state.n_mol;
 
     m_state.E_k += dn * E_k_per_mol;
     m_state.n_mol = next_n;
@@ -265,23 +265,23 @@ double GasSystem::gainN(double dn, double E_k_per_mol, const Mix &mix) {
     return -dn;
 }
 
-double GasSystem::gainN(double dn, double E_k_per_mol) {
+real_t GasSystem::gainN(real_t dn, real_t E_k_per_mol) {
     return gainN(dn, E_k_per_mol, Mix());
 }
 
 void GasSystem::dissipateExcessVelocity() {
-    const double v_x = velocity_x();
-    const double v_y = velocity_y();
-    const double v_squared = v_x * v_x + v_y * v_y;
-    const double c = this->c();
-    const double c_squared = c * c;
+    const real_t v_x = velocity_x();
+    const real_t v_y = velocity_y();
+    const real_t v_squared = v_x * v_x + v_y * v_y;
+    const real_t c = this->c();
+    const real_t c_squared = c * c;
 
     if (c_squared >= v_squared || v_squared == 0) {
         return;
     }
 
-    const double k_squared = c_squared / v_squared;
-    const double k = std::sqrt(k_squared);
+    const real_t k_squared = c_squared / v_squared;
+    const real_t k = std::sqrt(k_squared);
 
     m_state.momentum[0] *= k;
     m_state.momentum[1] *= k;
@@ -291,23 +291,23 @@ void GasSystem::dissipateExcessVelocity() {
     if (m_state.E_k < 0) m_state.E_k = 0;
 }
 
-void GasSystem::updateVelocity(double dt, double beta) {
+void GasSystem::updateVelocity(real_t dt, real_t beta) {
     if (n() == 0) return;
 
-    const double depth = volume() / (m_width * m_height);
+    const real_t depth = volume() / (m_width * m_height);
     
-    double d_momentum_x = 0;
-    double d_momentum_y = 0;
+    real_t d_momentum_x = 0;
+    real_t d_momentum_y = 0;
 
-    const double p0 = dynamicPressure(m_dx, m_dy);
-    const double p1 = dynamicPressure(-m_dx, -m_dy);
-    const double p2 = dynamicPressure(m_dy, m_dx);
-    const double p3 = dynamicPressure(-m_dy, -m_dx);
+    const real_t p0 = dynamicPressure(m_dx, m_dy);
+    const real_t p1 = dynamicPressure(-m_dx, -m_dy);
+    const real_t p2 = dynamicPressure(m_dy, m_dx);
+    const real_t p3 = dynamicPressure(-m_dy, -m_dx);
 
-    const double p_sa_0 = p0 * (m_height * depth);
-    const double p_sa_1 = p1 * (m_height * depth);
-    const double p_sa_2 = p2 * (m_width * depth);
-    const double p_sa_3 = p3 * (m_width * depth);
+    const real_t p_sa_0 = p0 * (m_height * depth);
+    const real_t p_sa_1 = p1 * (m_height * depth);
+    const real_t p_sa_2 = p2 * (m_width * depth);
+    const real_t p_sa_3 = p3 * (m_width * depth);
 
     d_momentum_x += p_sa_0 * m_dx;
     d_momentum_y += p_sa_0 * m_dy;
@@ -321,16 +321,16 @@ void GasSystem::updateVelocity(double dt, double beta) {
     d_momentum_x -= p_sa_3 * m_dy;
     d_momentum_y -= p_sa_3 * m_dx;
 
-    const double m = mass();
-    const double inv_m = 1 / m;
-    const double v0_x = m_state.momentum[0] * inv_m;
-    const double v0_y = m_state.momentum[1] * inv_m;
+    const real_t m = mass();
+    const real_t inv_m = 1 / m;
+    const real_t v0_x = m_state.momentum[0] * inv_m;
+    const real_t v0_y = m_state.momentum[1] * inv_m;
 
     m_state.momentum[0] -= d_momentum_x * dt * beta;
     m_state.momentum[1] -= d_momentum_y * dt * beta;
 
-    const double v1_x = m_state.momentum[0] * inv_m;
-    const double v1_y = m_state.momentum[1] * inv_m;
+    const real_t v1_x = m_state.momentum[0] * inv_m;
+    const real_t v1_y = m_state.momentum[1] * inv_m;
 
     m_state.E_k -= 0.5 * m * (v1_x * v1_x - v0_x * v0_x);
     m_state.E_k -= 0.5 * m * (v1_y * v1_y - v0_y * v0_y);
@@ -338,39 +338,39 @@ void GasSystem::updateVelocity(double dt, double beta) {
     if (m_state.E_k < 0) m_state.E_k = 0;
 }
 
-void GasSystem::dissipateVelocity(double dt, double timeConstant) {
+void GasSystem::dissipateVelocity(real_t dt, real_t timeConstant) {
     if (n() == 0) return;
 
-    const double invMass = 1.0 / mass();
-    const double velocity_x = m_state.momentum[0] * invMass;
-    const double velocity_y = m_state.momentum[1] * invMass;
-    const double velocity_squared =
+    const real_t invMass = 1.0 / mass();
+    const real_t velocity_x = m_state.momentum[0] * invMass;
+    const real_t velocity_y = m_state.momentum[1] * invMass;
+    const real_t velocity_squared =
         velocity_x * velocity_x + velocity_y * velocity_y;
 
-    const double s = dt / (dt + timeConstant);
+    const real_t s = dt / (dt + timeConstant);
     m_state.momentum[0] = m_state.momentum[0] * (1 - s);
     m_state.momentum[1] = m_state.momentum[1] * (1 - s);
 
-    const double newVelocity_x = m_state.momentum[0] * invMass;
-    const double newVelocity_y = m_state.momentum[1] * invMass;
-    const double newVelocity_squared =
+    const real_t newVelocity_x = m_state.momentum[0] * invMass;
+    const real_t newVelocity_y = m_state.momentum[1] * invMass;
+    const real_t newVelocity_squared =
         newVelocity_x * newVelocity_x + newVelocity_y * newVelocity_y;
 
-    const double dE_k = 0.5 * mass() * (velocity_squared - newVelocity_squared);
+    const real_t dE_k = 0.5 * mass() * (velocity_squared - newVelocity_squared);
     m_state.E_k += dE_k;
 }
 
-double GasSystem::flow(const FlowParameters &params) {
+real_t GasSystem::flow(const FlowParameters &params) {
     GasSystem *source = nullptr, *sink = nullptr;
-    double sourcePressure = 0, sinkPressure = 0;
-    double dx, dy;
-    double sourceCrossSection = 0, sinkCrossSection = 0;
-    double direction = 0;
+    real_t sourcePressure = 0, sinkPressure = 0;
+    real_t dx, dy;
+    real_t sourceCrossSection = 0, sinkCrossSection = 0;
+    real_t direction = 0;
 
-    const double P_0 =
+    const real_t P_0 =
         params.system_0->pressure()
         + params.system_0->dynamicPressure(params.direction_x, params.direction_y);
-    const double P_1 =
+    const real_t P_1 =
         params.system_1->pressure()
         + params.system_1->dynamicPressure(-params.direction_x, -params.direction_y);
 
@@ -397,7 +397,7 @@ double GasSystem::flow(const FlowParameters &params) {
         direction = -1.0;
     }
 
-    double flow = params.dt * flowRate(
+    real_t flow = params.dt * flowRate(
         params.k_flow,
         sourcePressure,
         sinkPressure,
@@ -407,72 +407,72 @@ double GasSystem::flow(const FlowParameters &params) {
         source->m_chokedFlowLimit,
         source->m_chokedFlowFactorCached);
 
-    flow = clamp(flow, 0.0, 0.9 * source->n());
+    flow = clamp(flow, real_t(0.0), real_t(0.9) * source->n());
 
-    const double fraction = flow / source->n();
-    const double fractionVolume = fraction * source->volume();
-    const double fractionMass = fraction * source->mass();
+    const real_t fraction = flow / source->n();
+    const real_t fractionVolume = fraction * source->volume();
+    const real_t fractionMass = fraction * source->mass();
 
     if (flow != 0) {
         // - Stage 1
         // Fraction flows from source to sink.
 
-        const double E_k_bulk_src0 = source->bulkKineticEnergy();
-        const double E_k_bulk_sink0 = sink->bulkKineticEnergy();
+        const real_t E_k_bulk_src0 = source->bulkKineticEnergy();
+        const real_t E_k_bulk_sink0 = sink->bulkKineticEnergy();
 
-        const double E_k_per_mol = source->kineticEnergyPerMol();
+        const real_t E_k_per_mol = source->kineticEnergyPerMol();
         sink->gainN(flow, E_k_per_mol, source->mix());
         source->loseN(flow, E_k_per_mol);
 
-        const double dp_x = source->m_state.momentum[0] * fraction;
-        const double dp_y = source->m_state.momentum[1] * fraction;
+        const real_t dp_x = source->m_state.momentum[0] * fraction;
+        const real_t dp_y = source->m_state.momentum[1] * fraction;
         source->m_state.momentum[0] -= dp_x;
         source->m_state.momentum[1] -= dp_y;
 
         sink->m_state.momentum[0] += dp_x;
         sink->m_state.momentum[1] += dp_y;
 
-        const double E_k_bulk_src1 = source->bulkKineticEnergy();
-        const double E_k_bulk_sink1 = sink->bulkKineticEnergy();
+        const real_t E_k_bulk_src1 = source->bulkKineticEnergy();
+        const real_t E_k_bulk_sink1 = sink->bulkKineticEnergy();
 
         sink->m_state.E_k -= ((E_k_bulk_src1 + E_k_bulk_sink1) - (E_k_bulk_src0 + E_k_bulk_sink0));
     }
     
-    const double sourceMass = source->mass();
-    const double invSourceMass = 1 / sourceMass;
-    const double sinkMass = sink->mass();
-    const double invSinkMass = 1 / sinkMass;
+    const real_t sourceMass = source->mass();
+    const real_t invSourceMass = 1 / sourceMass;
+    const real_t sinkMass = sink->mass();
+    const real_t invSinkMass = 1 / sinkMass;
 
-    const double c_source = source->c();
-    const double c_sink = sink->c();
+    const real_t c_source = source->c();
+    const real_t c_sink = sink->c();
 
-    const double sourceInitialMomentum_x = source->m_state.momentum[0];
-    const double sourceInitialMomentum_y = source->m_state.momentum[1];
+    const real_t sourceInitialMomentum_x = source->m_state.momentum[0];
+    const real_t sourceInitialMomentum_y = source->m_state.momentum[1];
 
-    const double sinkInitialMomentum_x = sink->m_state.momentum[0];
-    const double sinkInitialMomentum_y = sink->m_state.momentum[1];
+    const real_t sinkInitialMomentum_x = sink->m_state.momentum[0];
+    const real_t sinkInitialMomentum_y = sink->m_state.momentum[1];
 
     // Momentum in fraction
 
     if (sinkCrossSection != 0) {
-        const double sinkFractionVelocity =
-            clamp((fractionVolume / sinkCrossSection) / params.dt, 0.0, c_sink);
-        const double sinkFractionVelocity_x = sinkFractionVelocity * dx;
-        const double sinkFractionVelocity_y = sinkFractionVelocity * dy;
-        const double sinkFractionMomentum_x = sinkFractionVelocity_x * fractionMass;
-        const double sinkFractionMomentum_y = sinkFractionVelocity_y * fractionMass;
+        const real_t sinkFractionVelocity =
+            clamp((fractionVolume / sinkCrossSection) / params.dt, real_t(0.0), c_sink);
+        const real_t sinkFractionVelocity_x = sinkFractionVelocity * dx;
+        const real_t sinkFractionVelocity_y = sinkFractionVelocity * dy;
+        const real_t sinkFractionMomentum_x = sinkFractionVelocity_x * fractionMass;
+        const real_t sinkFractionMomentum_y = sinkFractionVelocity_y * fractionMass;
 
         sink->m_state.momentum[0] += sinkFractionMomentum_x;
         sink->m_state.momentum[1] += sinkFractionMomentum_y;
     }
 
     if (sourceCrossSection != 0 && sourceMass != 0) {
-        const double sourceFractionVelocity =
-            clamp((fractionVolume / sourceCrossSection) / params.dt, 0.0, c_source);
-        const double sourceFractionVelocity_x = sourceFractionVelocity * dx;
-        const double sourceFractionVelocity_y = sourceFractionVelocity * dy;
-        const double sourceFractionMomentum_x = sourceFractionVelocity_x * fractionMass;
-        const double sourceFractionMomentum_y = sourceFractionVelocity_y * fractionMass;
+        const real_t sourceFractionVelocity =
+            clamp((fractionVolume / sourceCrossSection) / params.dt, real_t(0.0), c_source);
+        const real_t sourceFractionVelocity_x = sourceFractionVelocity * dx;
+        const real_t sourceFractionVelocity_y = sourceFractionVelocity * dy;
+        const real_t sourceFractionMomentum_x = sourceFractionVelocity_x * fractionMass;
+        const real_t sourceFractionMomentum_y = sourceFractionVelocity_y * fractionMass;
 
         source->m_state.momentum[0] += sourceFractionMomentum_x;
         source->m_state.momentum[1] += sourceFractionMomentum_y;
@@ -480,11 +480,11 @@ double GasSystem::flow(const FlowParameters &params) {
 
     if (sourceMass != 0) {
         // Energy conservation
-        const double sourceVelocity0_x = sourceInitialMomentum_x * invSourceMass;
-        const double sourceVelocity0_y = sourceInitialMomentum_y * invSourceMass;
+        const real_t sourceVelocity0_x = sourceInitialMomentum_x * invSourceMass;
+        const real_t sourceVelocity0_y = sourceInitialMomentum_y * invSourceMass;
 
-        const double sourceVelocity1_x = source->m_state.momentum[0] * invSourceMass;
-        const double sourceVelocity1_y = source->m_state.momentum[1] * invSourceMass;
+        const real_t sourceVelocity1_x = source->m_state.momentum[0] * invSourceMass;
+        const real_t sourceVelocity1_y = source->m_state.momentum[1] * invSourceMass;
 
         source->m_state.E_k -=
             0.5 * sourceMass
@@ -496,11 +496,11 @@ double GasSystem::flow(const FlowParameters &params) {
     }
 
     if (sinkMass > 0) {
-        const double sinkVelocity0_x = sinkInitialMomentum_x * invSinkMass;
-        const double sinkVelocity0_y = sinkInitialMomentum_y * invSinkMass;
+        const real_t sinkVelocity0_x = sinkInitialMomentum_x * invSinkMass;
+        const real_t sinkVelocity0_y = sinkInitialMomentum_y * invSinkMass;
 
-        const double sinkVelocity1_x = sink->m_state.momentum[0] * invSinkMass;
-        const double sinkVelocity1_y = sink->m_state.momentum[1] * invSinkMass;
+        const real_t sinkVelocity1_x = sink->m_state.momentum[0] * invSinkMass;
+        const real_t sinkVelocity1_y = sink->m_state.momentum[1] * invSinkMass;
 
         sink->m_state.E_k -=
             0.5 * sinkMass
@@ -522,9 +522,9 @@ double GasSystem::flow(const FlowParameters &params) {
     return flow * direction;
 }
 
-double GasSystem::flow(double k_flow, double dt, double P_env, double T_env, const Mix &mix) {
-    const double maxFlow = pressureEquilibriumMaxFlow(P_env, T_env);
-    double flow = dt * flowRate(
+real_t GasSystem::flow(real_t k_flow, real_t dt, real_t P_env, real_t T_env, const Mix &mix) {
+    const real_t maxFlow = pressureEquilibriumMaxFlow(P_env, T_env);
+    real_t flow = dt * flowRate(
         k_flow,
         pressure(),
         P_env,
@@ -539,14 +539,14 @@ double GasSystem::flow(double k_flow, double dt, double P_env, double T_env, con
     }
 
     if (flow < 0) {
-        const double bulk_E_k_0 = bulkKineticEnergy();
+        const real_t bulk_E_k_0 = bulkKineticEnergy();
         gainN(-flow, kineticEnergyPerMol(T_env, m_degreesOfFreedom), mix);
-        const double bulk_E_k_1 = bulkKineticEnergy();
+        const real_t bulk_E_k_1 = bulkKineticEnergy();
 
         m_state.E_k += (bulk_E_k_1 - bulk_E_k_0);
     }
     else {
-        const double starting_n = n();
+        const real_t starting_n = n();
         loseN(flow, kineticEnergyPerMol());
 
         m_state.momentum[0] -= (flow / starting_n) * m_state.momentum[0];
@@ -556,11 +556,11 @@ double GasSystem::flow(double k_flow, double dt, double P_env, double T_env, con
     return flow;
 }
 
-double GasSystem::flow(double k_flow, double dt, double P_env, double T_env) {
+real_t GasSystem::flow(real_t k_flow, real_t dt, real_t P_env, real_t T_env) {
     return flow(k_flow, dt, P_env, T_env, Mix());
 }
 
-double GasSystem::pressureEquilibriumMaxFlow(const GasSystem *b) const {
+real_t GasSystem::pressureEquilibriumMaxFlow(const GasSystem *b) const {
     // pressure_a = (kineticEnergy() + n * b->kineticEnergyPerMol()) / (0.5 * degreesOfFreedom * volume())
     // pressure_b = (b->kineticEnergy() - n *  / (0.5 * b->degreesOfFreedom * b->volume())
     // pressure_a = pressure_b
@@ -575,25 +575,25 @@ double GasSystem::pressureEquilibriumMaxFlow(const GasSystem *b) const {
     // pressure_b = Q_b * (E_b - dn * D_b)
 
     if (pressure() > b->pressure()) {
-        const double maxFlow =
+        const real_t maxFlow =
                 (b->volume() * kineticEnergy() - volume() * b->kineticEnergy()) /
                 (b->volume() * kineticEnergyPerMol() + volume() * kineticEnergyPerMol());
         return std::fmax(0.0, std::fmin(maxFlow, n()));
     }
     else {
-        const double maxFlow =
+        const real_t maxFlow =
                 (b->volume() * kineticEnergy() - volume() * b->kineticEnergy()) /
                 (b->volume() * b->kineticEnergyPerMol() + volume() * b->kineticEnergyPerMol());
         return std::fmin(0.0, std::fmax(maxFlow, -b->n()));
     }
 }
 
-double GasSystem::pressureEquilibriumMaxFlow(double P_env, double T_env) const {
+real_t GasSystem::pressureEquilibriumMaxFlow(real_t P_env, real_t T_env) const {
     if (pressure() > P_env) {
         return -(P_env * (0.5 * m_degreesOfFreedom * volume()) - kineticEnergy()) / kineticEnergyPerMol();
     }
     else {
-        const double E_k_per_mol_env = 0.5 * T_env * constants::R * m_degreesOfFreedom;
+        const real_t E_k_per_mol_env = 0.5 * T_env * constants::R * m_degreesOfFreedom;
         return -(P_env * (0.5 * m_degreesOfFreedom * volume()) - kineticEnergy()) / E_k_per_mol_env;
     }
 }

@@ -6,11 +6,11 @@
 Governor::Governor() {
     m_minSpeed = m_maxSpeed = 0;
     m_targetSpeed = 0;
-    m_currentThrottle = 1.0;
-    m_velocity = 0.0;
-    m_minVelocity = m_maxVelocity = 0.0;
-    m_k_s = m_k_d = 0.0;
-    m_gamma = 1.0;
+    m_currentThrottle = 1.0f;
+    m_velocity = 0.0f;
+    m_minVelocity = m_maxVelocity = 0.0f;
+    m_k_s = m_k_d = 0.0f;
+    m_gamma = 1.0f;
 }
 
 Governor::~Governor() {
@@ -27,22 +27,22 @@ void Governor::initialize(const Parameters &params) {
     m_gamma = params.gamma;
 }
 
-void Governor::setSpeedControl(double s) {
+void Governor::setSpeedControl(real_t s) {
     Throttle::setSpeedControl(s);
 
     m_targetSpeed = (1 - s) * m_minSpeed + s * m_maxSpeed;
 }
 
-void Governor::update(double dt, Engine *engine) {
-    const double currentSpeed = engine->getSpeed();
-    const double ds = m_targetSpeed * m_targetSpeed - currentSpeed * currentSpeed;
+void Governor::update(real_t dt, Engine *engine) {
+    const real_t currentSpeed = engine->getSpeed();
+    const real_t ds = m_targetSpeed * m_targetSpeed - currentSpeed * currentSpeed;
 
     m_velocity += (dt * -ds * m_k_s - m_velocity * dt * m_k_d);
     m_velocity = clamp(m_velocity, m_minVelocity, m_maxVelocity);
-   
-    if (std::abs(currentSpeed) < std::abs(0.5 * m_minSpeed)) {
+
+    if (std::abs(currentSpeed) < std::abs(0.5f * m_minSpeed)) {
         m_velocity = 0;
-        m_currentThrottle = 1.0;
+        m_currentThrottle = 1.0f;
     }
 
     m_currentThrottle += m_velocity * dt;

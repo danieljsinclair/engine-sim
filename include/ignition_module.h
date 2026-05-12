@@ -6,6 +6,7 @@
 #include "crankshaft.h"
 #include "function.h"
 #include "units.h"
+#include "types.h"
 
 class IgnitionModule : public Part {
     public:
@@ -13,12 +14,12 @@ class IgnitionModule : public Part {
             int cylinderCount;
             Crankshaft *crankshaft;
             Function *timingCurve;
-            double revLimit = units::rpm(6000.0);
-            double limiterDuration = 0.5 * units::sec;
+            real_t revLimit = units::rpm(6000.0);
+            real_t limiterDuration = 0.5 * units::sec;
         };
 
         struct SparkPlug {
-            double angle = 0;
+            real_t angle = 0;
             bool ignitionEvent = false;
             bool enabled = false;
         };
@@ -30,14 +31,14 @@ class IgnitionModule : public Part {
         virtual void destroy();
 
         void initialize(const Parameters &params);
-        void setFiringOrder(int cylinderIndex, double angle);
+        void setFiringOrder(int cylinderIndex, real_t angle);
         void reset();
-        void update(double dt);
+        void update(real_t dt);
 
         bool getIgnitionEvent(int index) const;
         void resetIgnitionEvents();
 
-        double getTimingAdvance();
+        real_t getTimingAdvance();
 
         bool m_enabled;
 
@@ -49,10 +50,10 @@ class IgnitionModule : public Part {
         Crankshaft *m_crankshaft;
         int m_cylinderCount;
 
-        double m_lastCrankshaftAngle;
-        double m_revLimit;
-        double m_revLimitTimer;
-        double m_limiterDuration;
+        real_t m_lastCrankshaftAngle;
+        real_t m_revLimit;
+        real_t m_revLimitTimer;
+        real_t m_limiterDuration;
 };
 
 #endif /* ATG_ENGINE_SIM_IGNITION_MODULE_H */

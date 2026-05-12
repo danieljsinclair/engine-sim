@@ -5,6 +5,7 @@
 
 #include "function.h"
 #include "units.h"
+#include "types.h"
 
 class Crankshaft;
 class Camshaft : public Part {
@@ -33,24 +34,24 @@ class Camshaft : public Part {
         void initialize(const Parameters &params);
         virtual void destroy();
 
-        double valveLift(int lobe) const;
-        double sampleLobe(double theta) const;
+        real_t valveLift(int lobe) const;
+        real_t sampleLobe(real_t theta) const;
 
-        void setLobeCenterline(int lobe, double crankAngle) { m_lobeAngles[lobe] = crankAngle / 2; }
-        double getLobeCenterline(int lobe) const { return m_lobeAngles[lobe]; }
+        void setLobeCenterline(int lobe, real_t crankAngle) { m_lobeAngles[lobe] = crankAngle / 2; }
+        real_t getLobeCenterline(int lobe) const { return m_lobeAngles[lobe]; }
 
-        double getAngle() const;
+        real_t getAngle() const;
 
         Function *getLobeProfile() const { return m_lobeProfile; }
-        double getAdvance() const { return m_advance; }
-        double getBaseRadius() const { return m_baseRadius; }
+        real_t getAdvance() const { return m_advance; }
+        real_t getBaseRadius() const { return m_baseRadius; }
 
     private:
         Crankshaft *m_crankshaft;
         Function *m_lobeProfile;
-        double *m_lobeAngles;
-        double m_advance;
-        double m_baseRadius;
+        real_t *m_lobeAngles;
+        real_t m_advance;
+        real_t m_baseRadius;
         int m_lobes;
 };
 

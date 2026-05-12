@@ -1,34 +1,35 @@
-#ifndef ATG_ENGINE_SIM_GUASSIAN_FILTER_H
-#define ATG_ENGINE_SIM_GUASSIAN_FILTER_H
+#ifndef ATG_ENGINE_SIM_GAUSSIAN_FILTER_H
+#define ATG_ENGINE_SIM_GAUSSIAN_FILTER_H
 
 #include "scs.h"
 
 #include "crankshaft.h"
+#include "types.h"
 
 class GaussianFilter {
     public:
         GaussianFilter();
         ~GaussianFilter();
 
-        void initialize(double alpha, double radius, int cacheSteps=1024);
-        double evaluate(double s) const;
+        void initialize(real_t alpha, real_t radius, int cacheSteps=1024);
+        real_t evaluate(real_t s) const;
 
-        double getRadius() const { return m_radius; }
-        double getAlpha() const { return m_alpha; }
+        real_t getRadius() const { return m_radius; }
+        real_t getAlpha() const { return m_alpha; }
 
     protected:
-        double calculate(double s) const;
+        real_t calculate(real_t s) const;
         void generateCache();
 
     protected:
-        double *m_cache;
+        real_t *m_cache;
 
         int m_cacheSteps;
-        double m_radius;
-        double m_alpha;
+        real_t m_radius;
+        real_t m_alpha;
 
-        double m_exp_s;
-        double m_inv_r;
+        real_t m_exp_s;
+        real_t m_inv_r;
 };
 
 #endif /* ATG_ENGINE_SIM_GAUSSIAN_FILTER_H */

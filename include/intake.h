@@ -43,30 +43,30 @@ class Intake : public Part {
         void initialize(Parameters &params);
         virtual void destroy();
 
-        void process(double dt);
+        void process(real_t dt);
 
-        inline double getRunnerFlowRate() const { return m_runnerFlowRate; }
-        inline double getThrottlePlatePosition() const { return m_idleThrottlePlatePosition * m_throttle; }
-        inline double getRunnerLength() const { return m_runnerLength; }
-        inline double getPlenumCrossSectionArea() const { return m_crossSectionArea; }
-        inline double getVelocityDecay() const { return m_velocityDecay; }
+        inline real_t getRunnerFlowRate() const { return m_runnerFlowRate; }
+        inline real_t getThrottlePlatePosition() const { return m_idleThrottlePlatePosition * m_throttle; }
+        inline real_t getRunnerLength() const { return m_runnerLength; }
+        inline real_t getPlenumCrossSectionArea() const { return m_crossSectionArea; }
+        inline real_t getVelocityDecay() const { return m_velocityDecay; }
 
         GasSystem m_system;
-        double m_throttle;
+        real_t m_throttle;
 
-        double m_flow;
-        double m_flowRate;
-        double m_totalFuelInjected;
+        real_t m_flow;
+        real_t m_flowRate;
+        real_t m_totalFuelInjected;
 
     protected:
-        double m_crossSectionArea;
-        double m_inputFlowK;
-        double m_idleFlowK;
-        double m_runnerFlowRate;
-        double m_molecularAfr;
-        double m_idleThrottlePlatePosition;
-        double m_runnerLength;
-        double m_velocityDecay;
+        real_t m_crossSectionArea;
+        real_t m_inputFlowK;
+        real_t m_idleFlowK;
+        real_t m_runnerFlowRate;
+        real_t m_molecularAfr;
+        real_t m_idleThrottlePlatePosition;
+        real_t m_runnerLength;
+        real_t m_velocityDecay;
 
         GasSystem m_atmosphere;
 };

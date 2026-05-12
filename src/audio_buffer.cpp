@@ -20,7 +20,7 @@ void AudioBuffer::initialize(int sampleRate, int bufferSize) {
     m_samples = new int16_t[bufferSize];
     memset(m_samples, 0, sizeof(int16_t) * bufferSize);
     m_bufferSize = bufferSize;
-    m_offsetToSeconds = 1 / (double)sampleRate;
+    m_offsetToSeconds = 1 / (real_t)sampleRate;
 }
 
 void AudioBuffer::destroy() {

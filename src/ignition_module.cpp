@@ -11,9 +11,9 @@ IgnitionModule::IgnitionModule() {
     m_crankshaft = nullptr;
     m_timingCurve = nullptr;
     m_cylinderCount = 0;
-    m_lastCrankshaftAngle = 0.0;
+    m_lastCrankshaftAngle = 0.0f;
     m_enabled = false;
-    m_revLimitTimer = 0.0;
+    m_revLimitTimer = 0.0f;
     m_revLimit = 0;
     m_limiterDuration = 0;
 }
@@ -38,7 +38,7 @@ void IgnitionModule::initialize(const Parameters &params) {
     m_limiterDuration = params.limiterDuration;
 }
 
-void IgnitionModule::setFiringOrder(int cylinderIndex, double angle) {
+void IgnitionModule::setFiringOrder(int cylinderIndex, real_t angle) {
     assert(cylinderIndex < m_cylinderCount);
 
     m_plugs[cylinderIndex].angle = angle;
@@ -50,17 +50,17 @@ void IgnitionModule::reset() {
     resetIgnitionEvents();
 }
 
-void IgnitionModule::update(double dt) {
-    const double cycleAngle = m_crankshaft->getCycleAngle();
+void IgnitionModule::update(real_t dt) {
+    const real_t cycleAngle = m_crankshaft->getCycleAngle();
 
     if (m_enabled && m_revLimitTimer == 0) {
-        const double fourPi = 4 * constants::pi;
-        const double advance = getTimingAdvance();
+        const real_t fourPi = 4 * constants::pi;
+        const real_t advance = getTimingAdvance();
 
         for (int i = 0; i < m_cylinderCount; ++i) {
-            double adjustedAngle = positiveMod(m_plugs[i].angle - advance, fourPi);
-            const double r0 = m_lastCrankshaftAngle;
-            double r1 = cycleAngle;
+            real_t adjustedAngle = positiveMod(m_plugs[i].angle - advance, fourPi);
+            const real_t r0 = m_lastCrankshaftAngle;
+            real_t r1 = cycleAngle;
 
             if (m_crankshaft->m_body.v_theta < 0) {
                 if (r1 < r0) {
@@ -107,7 +107,7 @@ void IgnitionModule::resetIgnitionEvents() {
     }
 }
 
-double IgnitionModule::getTimingAdvance() {
+real_t IgnitionModule::getTimingAdvance() {
     return m_timingCurve->sampleTriangle(-m_crankshaft->m_body.v_theta);
 }
 

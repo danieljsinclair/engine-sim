@@ -13,11 +13,11 @@ class AudioBuffer {
         void initialize(int sampleRate, int bufferSize);
         void destroy();
 
-        inline double offsetToTime(int offset) const {
+        inline real_t offsetToTime(int offset) const {
             return offset * m_offsetToSeconds;
         }
 
-        inline double timeDelta(int offset0, int offset1) const {
+        inline real_t timeDelta(int offset0, int offset1) const {
             if (offset1 == offset0) return 0;
             else if (offset1 < offset0) {
                 return offsetToTime((m_bufferSize - offset0) + offset1);
@@ -76,7 +76,7 @@ class AudioBuffer {
         int16_t *m_samples;
         int m_bufferSize;
 
-        double m_offsetToSeconds;
+        real_t m_offsetToSeconds;
 };
 
 #endif /* ATG_ENGINE_SIM_AUDIO_BUFFER_H */

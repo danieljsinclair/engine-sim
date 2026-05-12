@@ -18,29 +18,29 @@ class CombustionChamber : public atg_scs::ForceGenerator {
             Fuel *Fuel;
             Function *MeanPistonSpeedToTurbulence;
 
-            double StartingPressure;
-            double StartingTemperature;
-            double CrankcasePressure;
+            real_t StartingPressure;
+            real_t StartingTemperature;
+            real_t CrankcasePressure;
         };
 
         struct FlameEvent {
-            double lit_n = 0;
-            double total_n = 0;
-            double percentageLit = 0;
-            double efficiency = 1.0;
-            double flameSpeed = 0.0;
+            real_t lit_n = 0;
+            real_t total_n = 0;
+            real_t percentageLit = 0;
+            real_t efficiency = 1.0;
+            real_t flameSpeed = 0.0;
 
-            double lastVolume = 0.0;
-            double travel_x = 0.0;
-            double travel_y = 0.0;
+            real_t lastVolume = 0.0;
+            real_t travel_x = 0.0;
+            real_t travel_y = 0.0;
             GasSystem::Mix globalMix;
         };
 
         struct FrictionModelParams {
-            double frictionCoeff = 0.06;
-            double breakawayFriction = units::force(50, units::N);
-            double breakawayFrictionVelocity = units::distance(0.1, units::m);
-            double viscousFrictionCoefficient = units::force(20, units::N);
+            real_t frictionCoeff = 0.06;
+            real_t breakawayFriction = units::force(50, units::N);
+            real_t breakawayFrictionVelocity = units::distance(0.1, units::m);
+            real_t viscousFrictionCoefficient = units::force(20, units::N);
         };
 
     public:
@@ -55,28 +55,28 @@ class CombustionChamber : public atg_scs::ForceGenerator {
         CylinderHead *getCylinderHead() const { return m_head; }
         Piston *getPiston() const { return m_piston; }
 
-        double getFrictionForce() const;
-        double getVolume() const;
-        double pistonSpeed() const;
-        double calculateMeanPistonSpeed() const;
-        double calculateFiringPressure() const;
+        real_t getFrictionForce() const;
+        real_t getVolume() const;
+        real_t pistonSpeed() const;
+        real_t calculateMeanPistonSpeed() const;
+        real_t calculateFiringPressure() const;
 
         bool isLit() const { return m_lit; }
         bool popLitLastFrame();
 
         void ignite();
-        void update(double dt);
-        void flow(double dt);
+        void update(real_t dt);
+        void flow(real_t dt);
 
-        double lastEventAfr() const;
+        real_t lastEventAfr() const;
 
-        double getLastIterationExhaustFlow() const { return m_exhaustFlow; }
+        real_t getLastIterationExhaustFlow() const { return m_exhaustFlow; }
 
         void resetLastTimestepExhaustFlow() { m_lastTimestepTotalExhaustFlow = 0; }
-        double getLastTimestepExhaustFlow() const { return m_lastTimestepTotalExhaustFlow; }
+        real_t getLastTimestepExhaustFlow() const { return m_lastTimestepTotalExhaustFlow; }
 
         void resetLastTimestepIntakeFlow() { m_lastTimestepTotalIntakeFlow = 0; }
-        double getLastTimestepIntakeFlow() const { return m_lastTimestepTotalIntakeFlow; }
+        real_t getLastTimestepIntakeFlow() const { return m_lastTimestepTotalIntakeFlow; }
 
         Function *m_meanPistonSpeedToTurbulence;
         GasSystem m_system;
@@ -87,29 +87,29 @@ class CombustionChamber : public atg_scs::ForceGenerator {
 
         FrictionModelParams m_frictionModel;
 
-        double m_peakTemperature;
-        double m_nBurntFuel;
+        real_t m_peakTemperature;
+        real_t m_nBurntFuel;
 
     protected:
-        double calculateFrictionForce(double v) const;
+        real_t calculateFrictionForce(real_t v) const;
         void updateCycleStates();
 
-        double m_intakeFlowRate;
-        double m_exhaustFlowRate;
+        real_t m_intakeFlowRate;
+        real_t m_exhaustFlowRate;
 
-        double m_manifoldToRunnerFlowRate;
-        double m_primaryToCollectorFlowRate;
-        double m_cylinderCrossSectionSurfaceArea;
-        double m_cylinderWidthApproximation;
+        real_t m_manifoldToRunnerFlowRate;
+        real_t m_primaryToCollectorFlowRate;
+        real_t m_cylinderCrossSectionSurfaceArea;
+        real_t m_cylinderWidthApproximation;
 
-        double m_lastTimestepTotalExhaustFlow;
-        double m_lastTimestepTotalIntakeFlow;
-        double m_exhaustFlow;
+        real_t m_lastTimestepTotalExhaustFlow;
+        real_t m_lastTimestepTotalIntakeFlow;
+        real_t m_exhaustFlow;
 
-        double m_crankcasePressure;
+        real_t m_crankcasePressure;
 
-        double *m_pressure;
-        double *m_pistonSpeed;
+        real_t *m_pressure;
+        real_t *m_pistonSpeed;
         static constexpr int StateSamples = 256;
 
         bool m_litLastFrame;

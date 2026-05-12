@@ -51,8 +51,8 @@ void CombustionChamber::initialize(const Parameters &params) {
     m_crankcasePressure = params.CrankcasePressure;
     m_meanPistonSpeedToTurbulence = params.MeanPistonSpeedToTurbulence;
 
-    m_pistonSpeed = new double[StateSamples];
-    m_pressure = new double[StateSamples];
+    m_pistonSpeed = new real_t[StateSamples];
+    m_pressure = new real_t[StateSamples];
     for (int i = 0; i < StateSamples; ++i) {
         m_pistonSpeed[i] = 0;
         m_pressure[i] = 0;
@@ -64,23 +64,23 @@ void CombustionChamber::initialize(const Parameters &params) {
     m_manifoldToRunnerFlowRate = intake->getRunnerFlowRate();
     m_primaryToCollectorFlowRate = exhaust->getPrimaryFlowRate();
 
-    const double bore_r = m_head->getCylinderBank()->getBore() / 2.0;
+    const real_t bore_r = m_head->getCylinderBank()->getBore() / 2.0;
     m_cylinderCrossSectionSurfaceArea = constants::pi * bore_r * bore_r;
     m_cylinderWidthApproximation = std::sqrt(m_cylinderCrossSectionSurfaceArea);
 
-    const double height = getVolume() / m_cylinderCrossSectionSurfaceArea;
+    const real_t height = getVolume() / m_cylinderCrossSectionSurfaceArea;
     m_system.setGeometry(
         m_cylinderWidthApproximation,
         height,
         1.0,
         0.0);
 
-    const double intakeRunnerCrossSection = m_head->getIntakeRunnerCrossSectionArea();
-    const double intakeRunnerWidth = std::sqrt(intakeRunnerCrossSection);
-    const double manifoldRunnerLength = intake->getRunnerLength();
-    const double manifoldRunnerVolume = intakeRunnerCrossSection * manifoldRunnerLength;
-    const double totalIntakeRunnerVolume = m_head->getIntakeRunnerVolume() + manifoldRunnerVolume;
-    const double overallIntakeRunnerLength = totalIntakeRunnerVolume / intakeRunnerCrossSection;
+    const real_t intakeRunnerCrossSection = m_head->getIntakeRunnerCrossSectionArea();
+    const real_t intakeRunnerWidth = std::sqrt(intakeRunnerCrossSection);
+    const real_t manifoldRunnerLength = intake->getRunnerLength();
+    const real_t manifoldRunnerVolume = intakeRunnerCrossSection * manifoldRunnerLength;
+    const real_t totalIntakeRunnerVolume = m_head->getIntakeRunnerVolume() + manifoldRunnerVolume;
+    const real_t overallIntakeRunnerLength = totalIntakeRunnerVolume / intakeRunnerCrossSection;
     m_intakeRunnerAndManifold.initialize(
         units::pressure(1.0, units::atm),
         totalIntakeRunnerVolume,
@@ -91,13 +91,13 @@ void CombustionChamber::initialize(const Parameters &params) {
         1.0,
         0.0);
 
-    const double exhaustRunnerCrossSection = m_head->getExhaustRunnerCrossSectionArea();
-    const double exhaustRunnerWidth = std::sqrt(exhaustRunnerCrossSection);
-    const double exhaustTubeLength =
+    const real_t exhaustRunnerCrossSection = m_head->getExhaustRunnerCrossSectionArea();
+    const real_t exhaustRunnerWidth = std::sqrt(exhaustRunnerCrossSection);
+    const real_t exhaustTubeLength =
         exhaust->getPrimaryTubeLength() + m_head->getHeaderPrimaryLength(m_piston->getCylinderIndex());
-    const double exhaustTubeVolume = exhaustRunnerCrossSection * exhaustTubeLength;
-    const double totalExhaustRunnerVolume = m_head->getExhaustRunnerVolume() + exhaustTubeVolume;
-    const double overallExhaustRunnerLength = totalExhaustRunnerVolume / exhaustRunnerCrossSection;
+    const real_t exhaustTubeVolume = exhaustRunnerCrossSection * exhaustTubeLength;
+    const real_t totalExhaustRunnerVolume = m_head->getExhaustRunnerVolume() + exhaustTubeVolume;
+    const real_t overallExhaustRunnerLength = totalExhaustRunnerVolume / exhaustRunnerCrossSection;
     m_exhaustRunnerAndPrimary.initialize(
         units::pressure(1.0, units::atm),
         totalExhaustRunnerVolume,
@@ -117,29 +117,29 @@ void CombustionChamber::destroy() {
     m_pressure = nullptr;
 }
 
-double CombustionChamber::getVolume() const {
-    const double combustionPortVolume = m_head->getCombustionChamberVolume();
+real_t CombustionChamber::getVolume() const {
+    const real_t combustionPortVolume = m_head->getCombustionChamberVolume();
     const CylinderBank *bank = m_head->getCylinderBank();
 
-    const double area = bank->boreSurfaceArea();
-    const double s =
+    const real_t area = bank->boreSurfaceArea();
+    const real_t s =
         m_piston->relativeX() * bank->getDx()
         + m_piston->relativeY() * bank->getDy();
-    const double sweep =
+    const real_t sweep =
         area * (bank->getDeckHeight() - s - m_piston->getCompressionHeight());
 
     return sweep + combustionPortVolume - m_piston->getDisplacement();
 }
 
-double CombustionChamber::pistonSpeed() const {
+real_t CombustionChamber::pistonSpeed() const {
     const CylinderBank *bank = m_head->getCylinderBank();
     return
         m_piston->m_body.v_x * bank->getDx()
         + m_piston->m_body.v_y * bank->getDy();
 }
 
-double CombustionChamber::calculateMeanPistonSpeed() const {
-    double avg = 0;
+real_t CombustionChamber::calculateMeanPistonSpeed() const {
+    real_t avg = 0;
     for (int i = 0; i < StateSamples; ++i) {
         avg += m_pistonSpeed[i];
     }
@@ -148,8 +148,8 @@ double CombustionChamber::calculateMeanPistonSpeed() const {
     return avg;
 }
 
-double CombustionChamber::calculateFiringPressure() const {
-    double firingPressure = 0;
+real_t CombustionChamber::calculateFiringPressure() const {
+    real_t firingPressure = 0;
     for (int i = 0; i < StateSamples; ++i) {
         if (m_pressure[i] > firingPressure) {
             firingPressure = m_pressure[i];
@@ -170,13 +170,13 @@ void CombustionChamber::ignite() {
     if (!m_lit) {
         if (m_system.mix().p_fuel == 0) return;
 
-        const double afr = m_system.mix().p_o2 / m_system.mix().p_fuel;
-        const double equivalenceRatio = afr / m_fuel->getMolecularAfr();
+        const real_t afr = m_system.mix().p_o2 / m_system.mix().p_fuel;
+        const real_t equivalenceRatio = afr / m_fuel->getMolecularAfr();
         if (equivalenceRatio < 0.5) return;
         else if (equivalenceRatio > 1.9) return;
 
-        const double idealInert = m_system.mix().p_o2 / 0.7;
-        const double dilution = (m_system.mix().p_inert / idealInert) - 1;
+        const real_t idealInert = m_system.mix().p_o2 / 0.7;
+        const real_t dilution = (m_system.mix().p_inert / idealInert) - 1;
 
         m_flameEvent.lastVolume = getVolume();
         m_flameEvent.travel_x = 0;
@@ -188,28 +188,28 @@ void CombustionChamber::ignite() {
         m_lit = true;
         m_litLastFrame = true;
 
-        const double randomness =
+        const real_t randomness =
             m_fuel->getBurningEfficiencyRandomness();
-        const double lowEfficiencyAttenuation =
+        const real_t lowEfficiencyAttenuation =
             m_fuel->getLowEfficiencyAttenuation();
-        const double maxBurningEfficiency =
+        const real_t maxBurningEfficiency =
             m_fuel->getMaxBurningEfficiency();
-        const double maxTurbulenceEffect =
+        const real_t maxTurbulenceEffect =
             m_fuel->getMaxTurbulenceEffect();
-        const double maxDilutionEffect =
+        const real_t maxDilutionEffect =
             m_fuel->getMaxDilutionEffect();
 
-        const double turbulence =
+        const real_t turbulence =
             m_meanPistonSpeedToTurbulence->sampleTriangle(
                 calculateMeanPistonSpeed());
-        const double mixingFactor =
+        const real_t mixingFactor =
             1.0 - (
                 clamp(turbulence / maxTurbulenceEffect)
                 * clamp(1 - dilution / maxDilutionEffect));
-        const double rand_s =
+        const real_t rand_s =
             lowEfficiencyAttenuation
-            * ((1 - randomness) + randomness * ((double)rand() / RAND_MAX));
-        const double efficiencyAttenuation =
+            * ((1 - randomness) + randomness * ((real_t)rand() / RAND_MAX));
+        const real_t efficiencyAttenuation =
             (mixingFactor * rand_s + (1 - mixingFactor));
         m_flameEvent.efficiency =
             efficiencyAttenuation * maxBurningEfficiency;
@@ -223,7 +223,7 @@ void CombustionChamber::ignite() {
     }
 }
 
-void CombustionChamber::update(double dt) {
+void CombustionChamber::update(real_t dt) {
     m_system.setVolume(getVolume());
 
     updateCycleStates();
@@ -232,18 +232,18 @@ void CombustionChamber::update(double dt) {
     m_exhaustFlowRate = m_head->exhaustFlowRate(m_piston->getCylinderIndex());
 }
 
-void CombustionChamber::flow(double dt) {
+void CombustionChamber::flow(real_t dt) {
     if (m_system.temperature() > m_peakTemperature) {
         m_peakTemperature = m_system.temperature();
     }
 
-    const double volume = getVolume();
-    const double cylinderHeight = volume / m_cylinderCrossSectionSurfaceArea;
-    const double cylinderSurfaceArea =
+    const real_t volume = getVolume();
+    const real_t cylinderHeight = volume / m_cylinderCrossSectionSurfaceArea;
+    const real_t cylinderSurfaceArea =
         cylinderHeight * constants::pi * m_head->getCylinderBank()->getBore()
         + m_cylinderCrossSectionSurfaceArea * 2;
 
-    const double dT = units::celcius(90.0) - m_system.temperature();
+    const real_t dT = units::celcius(90.0) - m_system.temperature();
 
     m_system.changeEnergy(dT * cylinderSurfaceArea * 100 * dt);
     m_system.flow(m_piston->getBlowbyK(), dt, m_crankcasePressure, units::celcius(25.0));
@@ -272,7 +272,7 @@ void CombustionChamber::flow(double dt) {
     flowParams.direction_y = 0.0;
     flowParams.system_0 = &m_intakeRunnerAndManifold;
     flowParams.system_1 = &m_system;
-    const double intakeFlow = GasSystem::flow(flowParams);
+    const real_t intakeFlow = GasSystem::flow(flowParams);
 
     m_intakeRunnerAndManifold.dissipateExcessVelocity();
     m_system.dissipateExcessVelocity();
@@ -284,7 +284,7 @@ void CombustionChamber::flow(double dt) {
     flowParams.direction_y = 0.0;
     flowParams.system_0 = &m_system;
     flowParams.system_1 = &m_exhaustRunnerAndPrimary;
-    const double exhaustFlow = GasSystem::flow(flowParams);
+    const real_t exhaustFlow = GasSystem::flow(flowParams);
 
     m_system.dissipateExcessVelocity();
     m_exhaustRunnerAndPrimary.dissipateExcessVelocity();
@@ -312,12 +312,12 @@ void CombustionChamber::flow(double dt) {
 
     if (m_lit) {
         CylinderBank *bank = m_head->getCylinderBank();
-        const double totalTravel_x = bank->getBore() / 2;
-        const double totalTravel_y = volume / bank->boreSurfaceArea();
-        const double expansion = volume / m_flameEvent.lastVolume;
-        const double lastTravel_x = m_flameEvent.travel_x;
-        const double lastTravel_y = m_flameEvent.travel_y * expansion;
-        const double flameSpeed = m_flameEvent.flameSpeed;
+        const real_t totalTravel_x = bank->getBore() / 2;
+        const real_t totalTravel_y = volume / bank->boreSurfaceArea();
+        const real_t expansion = volume / m_flameEvent.lastVolume;
+        const real_t lastTravel_x = m_flameEvent.travel_x;
+        const real_t lastTravel_y = m_flameEvent.travel_y * expansion;
+        const real_t flameSpeed = m_flameEvent.flameSpeed;
 
         m_flameEvent.travel_x =
             std::fmin(lastTravel_x + dt * flameSpeed, totalTravel_x);
@@ -325,17 +325,17 @@ void CombustionChamber::flow(double dt) {
             std::fmin(lastTravel_y + dt * flameSpeed, totalTravel_y);
 
         if (lastTravel_x < m_flameEvent.travel_x || lastTravel_y < m_flameEvent.travel_y) {
-            const double burnedVolume =
+            const real_t burnedVolume =
                 m_flameEvent.travel_x * m_flameEvent.travel_x
                 * constants::pi * m_flameEvent.travel_y;
-            const double prevBurnedVolume =
+            const real_t prevBurnedVolume =
                 lastTravel_x * lastTravel_x * constants::pi * lastTravel_y;
-            const double litVolume = burnedVolume - prevBurnedVolume;
-            const double n = (litVolume / volume) * m_system.n();
+            const real_t litVolume = burnedVolume - prevBurnedVolume;
+            const real_t n = (litVolume / volume) * m_system.n();
 
-            const double fuelBurned =
+            const real_t fuelBurned =
                 m_system.react(n * m_flameEvent.efficiency, m_flameEvent.globalMix);
-            const double massFuelBurned = fuelBurned * m_fuel->getMolecularMass();
+            const real_t massFuelBurned = fuelBurned * m_fuel->getMolecularMass();
             m_system.changeEnergy(
                 massFuelBurned * m_fuel->getEnergyDensity());
 
@@ -352,14 +352,14 @@ void CombustionChamber::flow(double dt) {
     }
 }
 
-double CombustionChamber::lastEventAfr() const {
-    const double totalFuel = m_flameEvent.globalMix.p_fuel * m_flameEvent.total_n;
-    const double totalOxygen = m_flameEvent.globalMix.p_o2 * m_flameEvent.total_n;
-    const double totalInert = m_flameEvent.globalMix.p_inert * m_flameEvent.total_n;
+real_t CombustionChamber::lastEventAfr() const {
+    const real_t totalFuel = m_flameEvent.globalMix.p_fuel * m_flameEvent.total_n;
+    const real_t totalOxygen = m_flameEvent.globalMix.p_o2 * m_flameEvent.total_n;
+    const real_t totalInert = m_flameEvent.globalMix.p_inert * m_flameEvent.total_n;
 
-    constexpr double octaneMolarMass = units::mass(114.23, units::g);
-    constexpr double oxygenMolarMass = units::mass(31.9988, units::g);
-    constexpr double nitrogenMolarMass = units::mass(28.014, units::g);
+    constexpr real_t octaneMolarMass = units::mass(114.23, units::g);
+    constexpr real_t oxygenMolarMass = units::mass(31.9988, units::g);
+    constexpr real_t nitrogenMolarMass = units::mass(28.014, units::g);
 
     if (totalFuel == 0) return 0;
     else {
@@ -369,26 +369,26 @@ double CombustionChamber::lastEventAfr() const {
     }
 }
 
-double CombustionChamber::calculateFrictionForce(double v_s) const {
-    const double cylinderWallForce = m_piston->calculateCylinderWallForce();
+real_t CombustionChamber::calculateFrictionForce(real_t v_s) const {
+    const real_t cylinderWallForce = m_piston->calculateCylinderWallForce();
 
-    const double F_coul = m_frictionModel.frictionCoeff * cylinderWallForce;
-    const double v_st = m_frictionModel.breakawayFrictionVelocity * constants::root_2;
-    const double v_coul = m_frictionModel.breakawayFrictionVelocity / 10;
-    const double F_brk = m_frictionModel.breakawayFriction;
-    const double v = std::abs(v_s);
+    const real_t F_coul = m_frictionModel.frictionCoeff * cylinderWallForce;
+    const real_t v_st = m_frictionModel.breakawayFrictionVelocity * constants::root_2;
+    const real_t v_coul = m_frictionModel.breakawayFrictionVelocity / 10;
+    const real_t F_brk = m_frictionModel.breakawayFriction;
+    const real_t v = std::abs(v_s);
 
-    const double F_0 = constants::root_2 * constants::e * (F_brk - F_coul);
-    const double F_1 = v / v_st;
-    const double F_2 = std::exp(-F_1 * F_1) * F_1;
-    const double F_3 = F_coul * std::tanh(v / v_coul);
-    const double F_4 = m_frictionModel.viscousFrictionCoefficient * v;
+    const real_t F_0 = constants::root_2 * constants::e * (F_brk - F_coul);
+    const real_t F_1 = v / v_st;
+    const real_t F_2 = std::exp(-F_1 * F_1) * F_1;
+    const real_t F_3 = F_coul * std::tanh(v / v_coul);
+    const real_t F_4 = m_frictionModel.viscousFrictionCoefficient * v;
 
     return F_0 * F_2 + F_3 + F_4;
 }
 
 void CombustionChamber::updateCycleStates() {
-    double crankAngle = m_engine->getOutputCrankshaft()->getCycleAngle();
+    real_t crankAngle = m_engine->getOutputCrankshaft()->getCycleAngle();
     if (std::isnan(crankAngle) || std::isinf(crankAngle)) {
         crankAngle = 0.0;
     }
@@ -401,26 +401,26 @@ void CombustionChamber::updateCycleStates() {
 
 void CombustionChamber::apply(atg_scs::SystemState *system) {
     CylinderBank *bank = m_head->getCylinderBank();
-    const double area = (bank->getBore() * bank->getBore() / 4.0) * constants::pi;
-    const double v_x = system->v_x[m_piston->m_body.index];
-    const double v_y = system->v_y[m_piston->m_body.index];
+    const real_t area = (bank->getBore() * bank->getBore() / 4.0) * constants::pi;
+    const real_t v_x = system->v_x[m_piston->m_body.index];
+    const real_t v_y = system->v_y[m_piston->m_body.index];
 
-    const double v_s =
+    const real_t v_s =
         v_x * bank->getDx() + v_y * bank->getDy();
 
-    const double pressureDifferential = m_system.pressure() - m_crankcasePressure;
-    const double force = -area * pressureDifferential;
+    const real_t pressureDifferential = m_system.pressure() - m_crankcasePressure;
+    const real_t force = -area * pressureDifferential;
 
     if (std::isnan(force) || std::isinf(force)) {
         assert(false);
     }
 
-    constexpr double limit = 1E-3;
-    const double abs_v_s = std::fmin(std::abs(v_s), limit);
-    const double attenuation = abs_v_s / limit;
+    constexpr real_t limit = 1E-3;
+    const real_t abs_v_s = std::fmin(std::abs(v_s), limit);
+    const real_t attenuation = abs_v_s / limit;
 
-    const double F = calculateFrictionForce(v_s) * attenuation;
-    const double F_fric = (v_s > 0)
+    const real_t F = calculateFrictionForce(v_s) * attenuation;
+    const real_t F_fric = (v_s > 0)
         ? -F
         : F;
 
@@ -432,12 +432,12 @@ void CombustionChamber::apply(atg_scs::SystemState *system) {
         m_piston->m_body.index);
 }
 
-double CombustionChamber::getFrictionForce() const {
+real_t CombustionChamber::getFrictionForce() const {
     CylinderBank *bank = m_head->getCylinderBank();
-    const double v_x = m_piston->m_body.v_x;
-    const double v_y = m_piston->m_body.v_y;
+    const real_t v_x = m_piston->m_body.v_x;
+    const real_t v_y = m_piston->m_body.v_y;
 
-    const double v_s =
+    const real_t v_s =
         v_x * bank->getDx() + v_y * bank->getDy();
 
     return calculateFrictionForce(v_s);

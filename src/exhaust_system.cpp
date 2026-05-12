@@ -20,9 +20,9 @@ ExhaustSystem::~ExhaustSystem() {
 }
 
 void ExhaustSystem::initialize(const Parameters &params) {
-    const double systemWidth = std::sqrt(params.collectorCrossSectionArea);
-    const double volume = params.collectorCrossSectionArea * params.length;
-    const double systemLength = params.length;
+    const real_t systemWidth = std::sqrt(params.collectorCrossSectionArea);
+    const real_t volume = params.collectorCrossSectionArea * params.length;
+    const real_t systemLength = params.length;
     m_system.initialize(
             units::pressure(1.0, units::atm),
             volume,
@@ -57,7 +57,7 @@ void ExhaustSystem::destroy() {
     /* void */
 }
 
-void ExhaustSystem::process(double dt) {
+void ExhaustSystem::process(real_t dt) {
     GasSystem::Mix airMix;
     airMix.p_fuel = 0;
     airMix.p_inert = 1.0;

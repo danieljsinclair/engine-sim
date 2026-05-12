@@ -22,7 +22,7 @@ Intake::~Intake() {
 }
 
 void Intake::initialize(Parameters &params) {
-    const double width = std::sqrt(params.CrossSectionArea);
+    const real_t width = std::sqrt(params.CrossSectionArea);
     m_system.initialize(
         units::pressure(1.0, units::atm),
         params.volume,
@@ -57,24 +57,24 @@ void Intake::destroy() {
     /* void */
 }
 
-void Intake::process(double dt) {
-    const double ideal_afr = 0.8 * m_molecularAfr * 4;
+void Intake::process(real_t dt) {
+    const real_t ideal_afr = 0.8 * m_molecularAfr * 4;
 
-    const double p_air = ideal_afr / (1 + ideal_afr);
+    const real_t p_air = ideal_afr / (1 + ideal_afr);
     GasSystem::Mix fuelAirMix;
     fuelAirMix.p_fuel = 1 - p_air;
     fuelAirMix.p_inert = p_air * 0.75;
     fuelAirMix.p_o2 = p_air * 0.25;
 
-    const double idle_afr = 2.0;
-    const double p_idle_air = idle_afr / (1 + idle_afr);
+    const real_t idle_afr = 2.0;
+    const real_t p_idle_air = idle_afr / (1 + idle_afr);
     GasSystem::Mix fuelMix;
     fuelMix.p_fuel = (1.0 - p_idle_air);
     fuelMix.p_inert = p_idle_air * 0.75;
     fuelMix.p_o2 = p_idle_air * 0.25;
 
-    const double throttle = getThrottlePlatePosition();
-    const double flowAttenuation = std::cos(throttle * constants::pi / 2);
+    const real_t throttle = getThrottlePlatePosition();
+    const real_t flowAttenuation = std::cos(throttle * constants::pi / 2);
 
     GasSystem::FlowParameters flowParams;
     flowParams.crossSectionArea_0 = units::area(10, units::m2);
@@ -93,7 +93,7 @@ void Intake::process(double dt) {
     flowParams.system_0 = &m_atmosphere;
     flowParams.system_1 = &m_system;
     flowParams.k_flow = m_idleFlowK;
-    const double idleCircuitFlow = m_system.flow(flowParams);
+    const real_t idleCircuitFlow = m_system.flow(flowParams);
 
     m_system.dissipateExcessVelocity();
     m_system.updateVelocity(dt, m_velocityDecay);

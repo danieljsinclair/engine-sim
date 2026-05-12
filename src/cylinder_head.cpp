@@ -48,21 +48,21 @@ void CylinderHead::destroy() {
     m_cylinders = nullptr;
 }
 
-double CylinderHead::intakeFlowRate(int cylinder) const {
+real_t CylinderHead::intakeFlowRate(int cylinder) const {
     return m_intakePortFlow->sampleTriangle(
             intakeValveLift(cylinder));
 }
 
-double CylinderHead::exhaustFlowRate(int cylinder) const {
+real_t CylinderHead::exhaustFlowRate(int cylinder) const {
     return m_exhaustPortFlow->sampleTriangle(
             exhaustValveLift(cylinder));
 }
 
-double CylinderHead::intakeValveLift(int cylinder) const {
+real_t CylinderHead::intakeValveLift(int cylinder) const {
     return m_valvetrain->intakeValveLift(cylinder);
 }
 
-double CylinderHead::exhaustValveLift(int cylinder) const {
+real_t CylinderHead::exhaustValveLift(int cylinder) const {
     return m_valvetrain->exhaustValveLift(cylinder);
 }
 
@@ -76,7 +76,7 @@ void CylinderHead::setExhaustSystem(int i, ExhaustSystem *system) {
     m_cylinders[i].exhaustSystem = system;
 }
 
-void CylinderHead::setSoundAttenuation(int i, double soundAttenuation) {
+void CylinderHead::setSoundAttenuation(int i, real_t soundAttenuation) {
     m_cylinders[i].soundAttenuation = soundAttenuation;
 }
 
@@ -90,13 +90,13 @@ void CylinderHead::setIntake(int i, Intake *intake) {
     m_cylinders[i].intake = intake;
 }
 
-void CylinderHead::setAllHeaderPrimaryLengths(double length) {
+void CylinderHead::setAllHeaderPrimaryLengths(real_t length) {
     for (int i = 0; i < m_bank->getCylinderCount(); ++i) {
         m_cylinders[i].headerPrimaryLength = length;
     }
 }
 
-void CylinderHead::setHeaderPrimaryLength(int i, double length) {
+void CylinderHead::setHeaderPrimaryLength(int i, real_t length) {
     m_cylinders[i].headerPrimaryLength = length;
 }
 

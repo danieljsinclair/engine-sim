@@ -21,8 +21,8 @@ Camshaft::~Camshaft() {
 }
 
 void Camshaft::initialize(const Parameters &params) {
-    m_lobeAngles = new double[params.lobes];
-    memset(m_lobeAngles, 0, sizeof(double) * params.lobes);
+    m_lobeAngles = new real_t[params.lobes];
+    memset(m_lobeAngles, 0, sizeof(real_t) * params.lobes);
 
     m_lobes = params.lobes;
     m_crankshaft = params.crankshaft;
@@ -38,22 +38,22 @@ void Camshaft::destroy() {
     m_lobes = 0;
 }
 
-double Camshaft::valveLift(int lobe) const {
+real_t Camshaft::valveLift(int lobe) const {
     return sampleLobe(getAngle() + m_lobeAngles[lobe]);
 }
 
-double Camshaft::sampleLobe(double theta) const {
-    double clampedTheta = std::fmod(theta, 2 * constants::pi);
-    if (clampedTheta < 0) clampedTheta += 2 * constants::pi;
-    if (clampedTheta >= constants::pi) clampedTheta -= 2 * constants::pi;
+real_t Camshaft::sampleLobe(real_t theta) const {
+    real_t clampedTheta = std::fmod(theta, (real_t)(2 * constants::pi));
+    if (clampedTheta < 0) clampedTheta += (real_t)(2 * constants::pi);
+    if (clampedTheta >= constants::pi) clampedTheta -= (real_t)(2 * constants::pi);
 
     return m_lobeProfile->sampleTriangle(clampedTheta);
 }
 
-double Camshaft::getAngle() const {
-    const double angle =
-        std::fmod((m_crankshaft->getAngle() + m_advance) * 0.5, 2 * constants::pi);
+real_t Camshaft::getAngle() const {
+    const real_t angle =
+        std::fmod((m_crankshaft->getAngle() + m_advance) * (real_t)0.5, (real_t)(2 * constants::pi));
     return (angle < 0)
-        ?  angle + 2 * constants::pi
+        ?  angle + (real_t)(2 * constants::pi)
         :  angle;
 }

@@ -23,7 +23,7 @@ class PistonEngineSimulator : public Simulator {
 
         virtual void loadSimulation(Engine *engine, Vehicle *vehicle, Transmission *transmission) override;
 
-        virtual double getTotalExhaustFlow() const override;
+        virtual real_t getTotalExhaustFlow() const override;
         void endFrame() override;
         virtual void destroy() override;
 
@@ -31,7 +31,7 @@ class PistonEngineSimulator : public Simulator {
         int getFluidSimulationSteps() const override { return m_fluidSimulationSteps; }
         int getFluidSimulationFrequency() const { return m_fluidSimulationSteps * getSimulationFrequency(); }
 
-        virtual double getAverageOutputSignal() const override;
+        virtual real_t getAverageOutputSignal() const override;
 
         DerivativeFilter m_derivativeFilter;
 
@@ -54,7 +54,7 @@ class PistonEngineSimulator : public Simulator {
         atg_scs::LineConstraint *m_cylinderWallConstraints;
         atg_scs::LinkConstraint *m_linkConstraints;
 
-        double *m_exhaustFlowStagingBuffer;
+        real_t *m_exhaustFlowStagingBuffer;
 
         int m_fluidSimulationSteps;
 };

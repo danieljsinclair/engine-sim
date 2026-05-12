@@ -28,16 +28,16 @@ class ExhaustSystem : public Part {
         void initialize(const Parameters &params);
         virtual void destroy();
 
-        void process(double dt);
+        void process(real_t dt);
 
         inline int getIndex() const { return m_index; }
-        inline double getLength() const { return m_length; }
-        inline double getFlow() const { return m_flow; }
-        inline double getAudioVolume() const { return m_audioVolume; }
-        inline double getPrimaryFlowRate() const { return m_primaryFlowRate; }
-        inline double getCollectorCrossSectionArea() const { return m_collectorCrossSectionArea; }
-        inline double getPrimaryTubeLength() const { return m_primaryTubeLength; }
-        inline double getVelocityDecay() const { return m_velocityDecay; }
+        inline real_t getLength() const { return m_length; }
+        inline real_t getFlow() const { return m_flow; }
+        inline real_t getAudioVolume() const { return m_audioVolume; }
+        inline real_t getPrimaryFlowRate() const { return m_primaryFlowRate; }
+        inline real_t getCollectorCrossSectionArea() const { return m_collectorCrossSectionArea; }
+        inline real_t getPrimaryTubeLength() const { return m_primaryTubeLength; }
+        inline real_t getVelocityDecay() const { return m_velocityDecay; }
         inline ImpulseResponse *getImpulseResponse() const { return m_impulseResponse; }
 
         inline GasSystem *getSystem() { return &m_system; }
@@ -48,16 +48,16 @@ class ExhaustSystem : public Part {
 
         ImpulseResponse *m_impulseResponse;
 
-        double m_length;
-        double m_primaryTubeLength;
-        double m_collectorCrossSectionArea;
-        double m_primaryFlowRate;
-        double m_outletFlowRate;
-        double m_audioVolume;
-        double m_velocityDecay;
+        real_t m_length;
+        real_t m_primaryTubeLength;
+        real_t m_collectorCrossSectionArea;
+        real_t m_primaryFlowRate;
+        real_t m_outletFlowRate;
+        real_t m_audioVolume;
+        real_t m_velocityDecay;
         int m_index;
 
-        double m_flow;
+        real_t m_flow;
 };
 
 #endif /* ATG_ENGINE_SIM_EXHAUST_SYSTEM_H */

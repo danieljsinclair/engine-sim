@@ -27,7 +27,7 @@ void Crankshaft::initialize(const Parameters &params) {
     m_I = params.momentOfInertia;
     m_throw = params.crankThrow;
     m_rodJournalCount = params.rodJournals;
-    m_rodJournalAngles = new double[m_rodJournalCount];
+    m_rodJournalAngles = new real_t[m_rodJournalCount];
     m_p_x = params.pos_x;
     m_p_y = params.pos_y;
     m_tdc = params.tdc;
@@ -40,38 +40,38 @@ void Crankshaft::destroy() {
     m_rodJournalAngles = nullptr;
 }
 
-void Crankshaft::getRodJournalPositionLocal(int i, double *x, double *y) {
-    const double theta = m_rodJournalAngles[i];
+void Crankshaft::getRodJournalPositionLocal(int i, real_t *x, real_t *y) {
+    const real_t theta = m_rodJournalAngles[i];
 
     *x = std::cos(theta) * m_throw;
     *y = std::sin(theta) * m_throw;
 }
 
-void Crankshaft::getRodJournalPositionGlobal(int i, double *x, double *y) {
-    double lx, ly;
+void Crankshaft::getRodJournalPositionGlobal(int i, real_t *x, real_t *y) {
+    real_t lx, ly;
     getRodJournalPositionLocal(i, &lx, &ly);
 
-    *x = lx + m_body.p_x;
-    *y = ly + m_body.p_y;
+    *x = lx + (real_t)m_body.p_x;
+    *y = ly + (real_t)m_body.p_y;
 }
 
 void Crankshaft::resetAngle() {
-    m_body.theta = std::fmod(m_body.theta, 4 * constants::pi);
+    m_body.theta = std::fmod((real_t)m_body.theta, (real_t)(4 * constants::pi));
 }
 
-void Crankshaft::setRodJournalAngle(int i, double angle) {
+void Crankshaft::setRodJournalAngle(int i, real_t angle) {
     assert(i < m_rodJournalCount && i >= 0);
 
     m_rodJournalAngles[i] = angle;
 }
 
-double Crankshaft::getAngle() const {
-    return m_body.theta - m_tdc;
+real_t Crankshaft::getAngle() const {
+    return (real_t)m_body.theta - m_tdc;
 }
 
-double Crankshaft::getCycleAngle(double offset) {
-    const double wrapped = std::fmod(-getAngle() + offset, 4 * constants::pi);
+real_t Crankshaft::getCycleAngle(real_t offset) {
+    const real_t wrapped = std::fmod(-getAngle() + offset, (real_t)(4 * constants::pi));
     return (wrapped < 0)
-        ? wrapped + 4 * constants::pi
+        ? wrapped + (real_t)(4 * constants::pi)
         : wrapped;
 }

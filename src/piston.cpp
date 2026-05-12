@@ -37,15 +37,15 @@ void Piston::destroy() {
     /* void */
 }
 
-double Piston::relativeX() const {
+real_t Piston::relativeX() const {
     return m_body.p_x - m_bank->getX();
 }
 
-double Piston::relativeY() const {
+real_t Piston::relativeY() const {
     return m_body.p_y - m_bank->getY();
 }
 
-double Piston::calculateCylinderWallForce() const {
+real_t Piston::calculateCylinderWallForce() const {
     return std::sqrt(
         m_cylinderConstraint->F_x[0][0] * m_cylinderConstraint->F_x[0][0]
         + m_cylinderConstraint->F_y[0][0] * m_cylinderConstraint->F_y[0][0]);

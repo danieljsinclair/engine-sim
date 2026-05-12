@@ -2,6 +2,7 @@
 #define ATG_ENGINE_SIM_CRANKSHAFT_H
 
 #include "part.h"
+#include "types.h"
 
 class Crankshaft : public Part {
     public:
@@ -24,37 +25,37 @@ class Crankshaft : public Part {
         void initialize(const Parameters &params);
         virtual void destroy();
         inline int getRodJournalCount() const { return m_rodJournalCount; }
-        void setRodJournalAngle(int i, double angle);
-        void getRodJournalPositionLocal(int i, double *x, double *y);
-        void getRodJournalPositionGlobal(int i, double *x, double *y);
-        double getRodJournalAngle(int i) { return m_rodJournalAngles[i]; }
+        void setRodJournalAngle(int i, real_t angle);
+        void getRodJournalPositionLocal(int i, real_t *x, real_t *y);
+        void getRodJournalPositionGlobal(int i, real_t *x, real_t *y);
+        real_t getRodJournalAngle(int i) { return m_rodJournalAngles[i]; }
 
         void resetAngle();
 
-        double getAngle() const;
-        double getCycleAngle(double offset = 0.0);
+        real_t getAngle() const;
+        real_t getCycleAngle(real_t offset = 0.0);
 
-        inline double getTdc() const { return m_tdc; }
-        inline double getThrow() const { return m_throw; }
-        inline double getMass() const { return m_m; }
-        inline double getMomentOfInertia() const { return m_I; }
-        inline double getFlywheelMass() const { return m_flywheelMass; }
-        inline double getPosX() const { return m_p_x; }
-        inline double getPosY() const { return m_p_y; }
-        inline double getFrictionTorque() const { return m_frictionTorque; }
+        inline real_t getTdc() const { return m_tdc; }
+        inline real_t getThrow() const { return m_throw; }
+        inline real_t getMass() const { return m_m; }
+        inline real_t getMomentOfInertia() const { return m_I; }
+        inline real_t getFlywheelMass() const { return m_flywheelMass; }
+        inline real_t getPosX() const { return m_p_x; }
+        inline real_t getPosY() const { return m_p_y; }
+        inline real_t getFrictionTorque() const { return m_frictionTorque; }
 
     protected:
-        double *m_rodJournalAngles;
+        real_t *m_rodJournalAngles;
         int m_rodJournalCount;
 
-        double m_tdc;
-        double m_throw;
-        double m_m;
-        double m_I;
-        double m_flywheelMass;
-        double m_p_x;
-        double m_p_y;
-        double m_frictionTorque;
+        real_t m_tdc;
+        real_t m_throw;
+        real_t m_m;
+        real_t m_I;
+        real_t m_flywheelMass;
+        real_t m_p_x;
+        real_t m_p_y;
+        real_t m_frictionTorque;
 };
 
 #endif /* ATG_ENGINE_SIM_CRANKSHAFT_H */

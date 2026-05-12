@@ -2,11 +2,12 @@
 #define ATG_ENGINE_SIM_DIRECT_THROTTLE_LINKAGE_H
 
 #include "throttle.h"
+#include "types.h"
 
 class DirectThrottleLinkage : public Throttle {
 public:
     struct Parameters {
-        double gamma;
+        real_t gamma;
     };
 
 public:
@@ -15,12 +16,12 @@ public:
 
     void initialize(const Parameters &params);
 
-    virtual void setSpeedControl(double s);
-    virtual void update(double dt, Engine *engine);
+    virtual void setSpeedControl(real_t s);
+    virtual void update(real_t dt, Engine *engine);
 
 protected:
-    double m_gamma;
-    double m_throttlePosition;
+    real_t m_gamma;
+    real_t m_throttlePosition;
 };
 
 #endif /* ATG_ENGINE_SIM_DIRECT_THROTTLE_LINKAGE_H */

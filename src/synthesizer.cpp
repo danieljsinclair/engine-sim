@@ -173,20 +173,20 @@ void Synthesizer::waitProcessed() {
     }
 }
 
-void Synthesizer::writeInput(const double *data) {
-    m_inputWriteOffset += (double)m_audioSampleRate / m_inputSampleRate;
+void Synthesizer::writeInput(const real_t *data) {
+    m_inputWriteOffset += m_audioSampleRate / m_inputSampleRate;
     if (m_inputWriteOffset >= (double)m_inputBufferSize) {
         m_inputWriteOffset -= (double)m_inputBufferSize;
     }
 
     for (int i = 0; i < m_inputChannelCount; ++i) {
         RingBuffer<float> &buffer = m_inputChannels[i].data;
-        const double lastInputSample = m_inputChannels[i].lastInputSample;
+        const double lastInputSample = (double)m_inputChannels[i].lastInputSample;
         const size_t baseIndex = buffer.writeIndex();
         const double distance =
-            inputDistance(m_inputWriteOffset, m_lastInputSampleOffset);
+            inputDistance((double)m_inputWriteOffset, m_lastInputSampleOffset);
         double s =
-            inputDistance(baseIndex, m_lastInputSampleOffset);
+            inputDistance((double)baseIndex, m_lastInputSampleOffset);
         for (; s <= distance; s += 1.0) {
             if (s >= m_inputBufferSize) s -= m_inputBufferSize;
 

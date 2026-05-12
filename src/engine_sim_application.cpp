@@ -1,5 +1,6 @@
 #include "../include/engine_sim_application.h"
 
+#include "../include/fast_math.h"
 #include "../include/piston_object.h"
 #include "../include/connecting_rod_object.h"
 #include "../include/constants.h"
@@ -89,6 +90,8 @@ EngineSimApplication::~EngineSimApplication() {
 }
 
 void EngineSimApplication::initialize(void *instance, ysContextObject::DeviceAPI api) {
+    fast_math::initialize();
+
     dbasic::Path modulePath = dbasic::GetModulePath();
     dbasic::Path confPath = modulePath.Append("delta.conf");
 
