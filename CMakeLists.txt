@@ -61,6 +61,7 @@ add_library(engine-sim STATIC
     src/audio_buffer.cpp
     src/camshaft.cpp
     src/crankshaft.cpp
+    src/fast_math.cpp
     src/combustion_chamber.cpp
     src/connecting_rod.cpp
     src/convolution_filter.cpp
