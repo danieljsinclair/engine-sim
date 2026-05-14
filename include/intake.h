@@ -50,6 +50,10 @@ class Intake : public Part {
         inline double getRunnerLength() const { return m_runnerLength; }
         inline double getPlenumCrossSectionArea() const { return m_crossSectionArea; }
         inline double getVelocityDecay() const { return m_velocityDecay; }
+        inline double getVolume() const { return m_system.volume(); }
+        inline double getInputFlowK() const { return m_inputFlowK; }
+        inline double getIdleFlowK() const { return m_idleFlowK; }
+        inline double getIdleThrottlePlatePosition() const { return m_idleThrottlePlatePosition; }
 
         GasSystem m_system;
         double m_throttle;

@@ -29,6 +29,13 @@ class Function {
         void getDomain(double *x0, double *x1);
         void getRange(double *y0, double *y1);
 
+        inline int getSampleCount() const { return m_size; }
+        inline double getX(int i) const { return m_x[i]; }
+        inline double getY(int i) const { return m_y[i]; }
+        inline double getFilterRadius() const { return m_filterRadius; }
+        inline double getInputScale() const { return m_inputScale; }
+        inline double getOutputScale() const { return m_outputScale; }
+
     protected:
         double *m_x;
         double *m_y;

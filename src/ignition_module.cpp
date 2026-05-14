@@ -114,3 +114,7 @@ double IgnitionModule::getTimingAdvance() {
 IgnitionModule::SparkPlug *IgnitionModule::getPlug(int i) {
     return &m_plugs[((i % m_cylinderCount) + m_cylinderCount) % m_cylinderCount];
 }
+
+double IgnitionModule::getFiringOrder(int cylinderIndex) const {
+    return m_plugs[cylinderIndex].angle;
+}
