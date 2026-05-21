@@ -54,6 +54,7 @@ class Intake : public Part {
         inline double getInputFlowK() const { return m_inputFlowK; }
         inline double getIdleFlowK() const { return m_idleFlowK; }
         inline double getIdleThrottlePlatePosition() const { return m_idleThrottlePlatePosition; }
+        inline double getMolecularAfr() const { return m_molecularAfr; }
 
         GasSystem m_system;
         double m_throttle;
