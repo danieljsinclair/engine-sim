@@ -106,6 +106,7 @@ class Engine : public Part {
         double getInitialHighFrequencyGain() const { return m_initialHighFrequencyGain; }
         double getInitialNoise() const { return m_initialNoise; }
         double getInitialJitter() const { return m_initialJitter; }
+        Throttle *getThrottleLinkage() const { return m_throttle; }
 
         virtual Simulator *createSimulator(Vehicle *vehicle, Transmission *transmission);
 
