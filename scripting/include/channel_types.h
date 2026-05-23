@@ -2,6 +2,7 @@
 #define ATG_ENGINE_SIM_CHANNEL_TYPES_H
 
 #include "piranha.h"
+#include <type_traits>
 
 namespace es_script {
 
@@ -29,7 +30,7 @@ namespace es_script {
 
     template <typename Type>
     extern inline const piranha::ChannelType *LookupChannelType() {
-        static_assert(false, "Invalid type lookup");
+        static_assert(!std::is_same_v<Type, void>, "Invalid type lookup");
         return nullptr;
     }
 
