@@ -6,6 +6,8 @@
 #include "engine_sim.h"
 #include "piranha.h"
 
+#include <fstream>
+#include <iosfwd>
 #include <vector>
 
 namespace es_script {
@@ -37,7 +39,7 @@ namespace es_script {
         void destroy();
 
     private:
-        void printError(const piranha::CompilationError *err, std::ofstream &file) const;
+        void printError(const piranha::CompilationError *err, std::ostream &out) const;
 
     private:
         LanguageRules m_rules;

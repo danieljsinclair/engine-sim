@@ -1,5 +1,7 @@
 #include "../include/compiler.h"
 
+#include <iostream>
+
 es_script::Compiler::Output *es_script::Compiler::s_output = nullptr;
 
 es_script::Compiler::Compiler() {
@@ -35,7 +37,9 @@ bool es_script::Compiler::compile(const piranha::IrPath &path) {
     std::ofstream file("error_log.log", std::ios::out);
     piranha::IrCompilationUnit *unit = m_compiler->compile(path);
     if (unit == nullptr) {
-        file << "Can't find file: " << path.toString() << "\n";
+        const std::string msg = "Can't find file: " + path.toString() + "\n";
+        file << msg;
+        std::cerr << "[engine-sim] " << msg;
     }
     else {
         const piranha::ErrorList *errors = m_compiler->getErrorList();
@@ -49,6 +53,7 @@ bool es_script::Compiler::compile(const piranha::IrPath &path) {
         else {
             for (int i = 0; i < errors->getErrorCount(); ++i) {
                 printError(errors->getCompilationError(i), file);
+                printError(errors->getCompilationError(i), std::cerr);
             }
         }
     }
@@ -78,10 +83,10 @@ void es_script::Compiler::destroy() {
 
 void es_script::Compiler::printError(
     const piranha::CompilationError *err,
-    std::ofstream &file) const
+    std::ostream &out) const
 {
     const piranha::ErrorCode_struct &errorCode = err->getErrorCode();
-    file << err->getCompilationUnit()->getPath().getStem()
+    out << err->getCompilationUnit()->getPath().getStem()
         << "(" << err->getErrorLocation()->lineStart << "): error "
         << errorCode.stage << errorCode.code << ": " << errorCode.info << std::endl;
 
@@ -97,7 +102,7 @@ void es_script::Compiler::printError(
                 ? "<unnamed> " + definitionName
                 : instanceName + " " + definitionName;
 
-            file
+            out
                 << "       While instantiating: "
                 << instance->getParentUnit()->getPath().getStem()
                 << "(" << instance->getSummaryToken()->lineStart << "): "
