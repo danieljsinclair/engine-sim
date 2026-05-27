@@ -50,6 +50,7 @@ class Fuel {
         virtual double laminarBurningVelocity(double molecularAfr, double T, double P) const;
 
         double getMolecularAfr() const { return m_molecularAfr; }
+        inline Function* getTurbulenceToFlameSpeedRatio() const { return m_turbulenceToFlameSpeedRatio; }
 
     protected:
         std::string m_name;

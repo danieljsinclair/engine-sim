@@ -67,8 +67,8 @@ rebuild: clean all
 # Test the build
 test: build
 	@echo "Testing library..."
-	@echo "Library: libengine-sim.a"
-	file libengine-sim.a
+	@echo "Library: $(BUILD_DIR)/libengine-sim.a"
+	file $(BUILD_DIR)/libengine-sim.a
 
 help:
 	@echo "Engine-Sim Bridge Build System"

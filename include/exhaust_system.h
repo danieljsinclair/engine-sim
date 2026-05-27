@@ -38,6 +38,7 @@ class ExhaustSystem : public Part {
         inline double getCollectorCrossSectionArea() const { return m_collectorCrossSectionArea; }
         inline double getPrimaryTubeLength() const { return m_primaryTubeLength; }
         inline double getVelocityDecay() const { return m_velocityDecay; }
+        inline double getOutletFlowRate() const { return m_outletFlowRate; }
         inline ImpulseResponse *getImpulseResponse() const { return m_impulseResponse; }
 
         inline GasSystem *getSystem() { return &m_system; }

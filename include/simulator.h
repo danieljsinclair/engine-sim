@@ -83,6 +83,8 @@ public:
     Dynamometer m_dyno;
     StarterMotor m_starterMotor;
 
+    atg_scs::RigidBody *getVehicleMassBody() { return &m_vehicleMass; }
+
 protected:
     void initializeSynthesizer();
     virtual void simulateStep_();

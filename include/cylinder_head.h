@@ -77,6 +77,9 @@ class CylinderHead : public Part {
         Camshaft *getExhaustCamshaft();
         Camshaft *getIntakeCamshaft();
 
+        inline Function *getIntakePortFlow() const { return m_intakePortFlow; }
+        inline Function *getExhaustPortFlow() const { return m_exhaustPortFlow; }
+
     protected:
         Cylinder *m_cylinders;
 

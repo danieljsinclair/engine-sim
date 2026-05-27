@@ -44,6 +44,7 @@ class Camshaft : public Part {
         Function *getLobeProfile() const { return m_lobeProfile; }
         double getAdvance() const { return m_advance; }
         double getBaseRadius() const { return m_baseRadius; }
+        inline int getLobeCount() const { return m_lobes; }
 
     private:
         Crankshaft *m_crankshaft;

@@ -41,6 +41,12 @@ class IgnitionModule : public Part {
 
         bool m_enabled;
 
+        inline Function *getTimingCurve() const { return m_timingCurve; }
+        inline double getRevLimit() const { return m_revLimit; }
+        inline double getLimiterDuration() const { return m_limiterDuration; }
+        inline int getCylinderCount() const { return m_cylinderCount; }
+        double getFiringOrder(int cylinderIndex) const;
+
     protected:
         SparkPlug *getPlug(int i);
 
