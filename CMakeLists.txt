@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
+# Prevent in-source builds that overwrite hand-written Makefiles
+if(CMAKE_BINARY_DIR STREQUAL CMAKE_SOURCE_DIR)
+    message(FATAL_ERROR
+        "In-source builds not allowed. Run 'make' from the repo root instead. "
+        "Or: cmake -B build && cmake --build build")
+endif()
+
 option(DTV "Enable video output" OFF)
 option(PIRANHA_ENABLED "Enable scripting input" ON)
 option(DISCORD_ENABLED "Enable Discord Rich Presence" ON)
@@ -23,17 +30,6 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")
 project(engine-sim)
 
 set(CMAKE_CXX_STANDARD 17)
-
-# Enable compiler warnings as errors
-if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
-    add_compile_options(
-        -Wall
-        -Wextra
-        -Werror
-        -Wno-unused-parameter  # Many Piranha warnings
-        -Wno-sign-compare    # Platform differences
-    )
-endif()
 
 # ========================================================
 # GTEST
@@ -151,7 +147,18 @@ target_link_libraries(engine-sim
     PUBLIC simple-2d-constraint-solver
     PUBLIC csv-io)
 
-target_compile_options(engine-sim PRIVATE -g)
+# Enable compiler warnings as errors
+if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
+    target_compile_options(engine-sim PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -Wno-unused-parameter  # Many Piranha warnings
+        -Wno-sign-compare    # Platform differences
+        -g)
+else()
+    target_compile_options(engine-sim PRIVATE -g)
+endif()
 
 target_include_directories(engine-sim
     PUBLIC dependencies/submodules

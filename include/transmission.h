@@ -26,11 +26,15 @@ class Transmission {
             Engine *engine);
         void changeGear(int newGear);
         inline int getGear() const { return m_gear; }
+        inline double getGearRatio() const {
+            return (m_gear >= 0 && m_gear < m_gearCount) ? m_gearRatios[m_gear] : 0.0;
+        }
         inline void setClutchPressure(double pressure) { m_clutchPressure = pressure; }
         inline double getClutchPressure() const { return m_clutchPressure; }
         inline int getGearCount() const { return m_gearCount; }
         inline double getGearRatio(int i) const { return m_gearRatios[i]; }
         inline double getMaxClutchTorque() const { return m_maxClutchTorque; }
+        inline const atg_scs::ClutchConstraint& getClutchConstraint() const { return m_clutchConstraint; }
 
     protected:
         atg_scs::ClutchConstraint m_clutchConstraint;
