@@ -397,8 +397,17 @@ target_include_directories(engine-sim-app
 add_subdirectory(dependencies)
 
 # GTEST
-
-enable_testing()
+#
+# Only register engine-sim's own tests when building engine-sim standalone.
+# When engine-sim is pulled in as a subdirectory by a parent project (e.g.
+# engine-sim-bridge via add_subdirectory(... EXCLUDE_FROM_ALL)), the parent
+# owns testing and engine-sim-test is not in the default build; registering
+# it there leaves a phantom "engine-sim-test_NOT_BUILT" entry in the parent's
+# CTest. This guard (the same CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR
+# idiom CMake recommends for subdirectories) keeps registration to standalone
+# builds on every platform, with no effect on engine-sim's library targets.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    enable_testing()
 
 add_executable(engine-sim-test
     # Source files
@@ -420,3 +429,4 @@ target_link_libraries(engine-sim-test
 
 include(GoogleTest)
 gtest_discover_tests(engine-sim-test)
+endif()
