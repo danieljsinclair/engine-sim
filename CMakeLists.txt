@@ -94,6 +94,7 @@ add_library(engine-sim STATIC
     src/valvetrain.cpp
     src/vehicle.cpp
     src/vehicle_drag_constraint.cpp
+    src/vehicle_speed_constraint.cpp
     src/vtec_valvetrain.cpp
 
     # Include files
@@ -139,6 +140,7 @@ add_library(engine-sim STATIC
     include/valvetrain.h
     include/vehicle.h
     include/vehicle_drag_constraint.h
+    include/vehicle_speed_constraint.h
     include/vtec_valvetrain.h
     include/wav_loader.h
 )
