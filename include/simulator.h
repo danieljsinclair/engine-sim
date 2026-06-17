@@ -9,6 +9,7 @@
 #include "starter_motor.h"
 #include "derivative_filter.h"
 #include "vehicle_drag_constraint.h"
+#include "vehicle_speed_constraint.h"
 #include "delay_filter.h"
 #include "engine.h"
 
@@ -82,6 +83,7 @@ public:
 
     Dynamometer m_dyno;
     StarterMotor m_starterMotor;
+    VehicleSpeedConstraint m_vehicleSpeedConstraint;
 
     atg_scs::RigidBody *getVehicleMassBody() { return &m_vehicleMass; }
 

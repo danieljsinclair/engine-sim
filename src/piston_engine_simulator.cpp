@@ -91,6 +91,13 @@ void PistonEngineSimulator::loadSimulation(Engine *engine, Vehicle *vehicle, Tra
     m_vehicleDrag.initialize(&m_vehicleMass, m_vehicle);
     m_system->addConstraint(&m_vehicleDrag);
 
+    // Spike-A: vehicle-speed constraint drives the vehicle-mass body to a target
+    // road speed (inverse model), letting the clutch couple it to the engine
+    // instead of the dyno pinning the crank. Disabled by default; BridgeSimulator
+    // enables it for the --auto DRIVE path and keeps the dyno off.
+    m_vehicleSpeedConstraint.connectVehicleMass(&m_vehicleMass);
+    m_system->addConstraint(&m_vehicleSpeedConstraint);
+
     m_vehicleMass.reset();
     m_vehicleMass.m = 1.0;
     m_vehicleMass.I = 1.0;
