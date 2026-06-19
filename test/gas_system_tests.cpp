@@ -5,6 +5,26 @@
 #include "../include/csv_io.h"
 
 #include <sstream>
+#include <cstdlib>
+#include <string>
+#include <sys/stat.h>
+
+// Resolves a diagnostic output filename to TEST_OUTPUT_DIR/<name> when that
+// compile definition is set (by CMake, to ${CMAKE_BINARY_DIR}/test-output),
+// falling back to the bare name (CWD) otherwise. Ensures the directory exists.
+// Keeps CSV diagnostic output out of the repo root — see CLAUDE.md / the
+// run_coverage_tests.sh note. Defined once here (SRP): the only engine-sim
+// test that writes diagnostic files.
+static std::string testOutputPath(const char* name) {
+#ifdef TEST_OUTPUT_DIR
+    const char* dir = TEST_OUTPUT_DIR;
+    if (dir != nullptr && dir[0] != '\0') {
+        mkdir(dir, 0777); // best-effort; ignore EEXIST (no errno check needed)
+        return std::string(dir) + "/" + name;
+    }
+#endif
+    return std::string(name);
+}
 
 TEST(GasSystemTests, GasSystemSanity) {
     GasSystem system;
@@ -90,79 +110,26 @@ TEST(GasSystemTests, PressureEqualizationEnergyConservation) {
     EXPECT_NEAR(finalSystemEnergy, initialSystemEnergy, 1E-4);
 }
 
-// DISABLED: Broken edge case tests from original Windows development.
-// Commented out by author during momentum model refactoring (Jul 2022),
-// accidentally re-enabled in "code cleanup" without verification.
-// Contains copy-paste bug (line 118 uses maxFlowIn instead of maxFlowOut).
-// Production code uses safe flow() with bounds checking - these are not requirements.
-// See git: f47c5bd "New momentum model"
-TEST(GasSystemTests, DISABLED_PressureEquilibriumMaxFlow) {
-    GasSystem system1, system2;
-    system1.initialize(
-        units::pressure(1.0, units::atm),
-        units::volume(1.0, units::cc),
-        units::celcius(2500.0)
-    );
-
-    system2.initialize(
-        units::pressure(2.0, units::atm),
-        units::volume(1.0, units::cc),
-        units::celcius(25.0)
-    );
-
-    const double maxFlowIn = system1.pressureEquilibriumMaxFlow(&system2);
-
-    system1.loseN(maxFlowIn, system1.kineticEnergyPerMol());
-    system2.gainN(maxFlowIn, system1.kineticEnergyPerMol(), system1.mix());
-
-    EXPECT_NEAR(system1.pressure(), system2.pressure(), 1E-6);
-
-    system1.changePressure(units::pressure(100.0, units::atm));
-
-    [[maybe_unused]] const double maxFlowOut = system1.pressureEquilibriumMaxFlow(&system2);
-
-    system1.loseN(maxFlowIn, system1.kineticEnergyPerMol());
-    system2.gainN(maxFlowIn, system1.kineticEnergyPerMol(), system1.mix());
-
-    EXPECT_NEAR(system1.pressure(), system2.pressure(), 1E-6);
-}
-
-TEST(GasSystemTests, DISABLED_PressureEquilibriumMaxFlowInfinite) {
-    GasSystem system1;
-    system1.initialize(
-        units::pressure(1.0, units::atm),
-        units::volume(1.0, units::cc),
-        units::celcius(25.0)
-    );
-
-    constexpr double P_env = units::pressure(2.0, units::atm);
-    constexpr double T_env = units::celcius(25.0);
-
-[[maybe_unused]]     const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
-    const double E_k_per_mol = GasSystem::kineticEnergyPerMol(T_env, system1.degreesOfFreedom());
-
-    system1.gainN(maxFlow, E_k_per_mol);
-
-    EXPECT_NEAR(system1.pressure(), P_env, 1E-6);
-}
-
-TEST(GasSystemTests, DISABLED_PressureEquilibriumMaxFlowInfiniteOverpressure) {
-    GasSystem system1;
-    system1.initialize(
-        units::pressure(100.0, units::atm),
-        units::volume(1.0, units::m3),
-        units::celcius(2500.0)
-    );
-
-    constexpr double P_env = units::pressure(2.0, units::atm);
-    constexpr double T_env = units::celcius(25.0);
-
-[[maybe_unused]]     const double maxFlow = system1.pressureEquilibriumMaxFlow(P_env, T_env);
-
-    system1.loseN(maxFlow, GasSystem::kineticEnergyPerMol(T_env, 5));
-
-    EXPECT_NEAR(system1.pressure(), P_env, 1E-6);
-}
+// The three previously-DISABLED PressureEquilibriumMaxFlow tests were removed.
+// They were broken edge-case tests from the original Windows development
+// (commented out by the author during the Jul 2022 momentum-model refactor,
+// git f47c5bd) that did not exercise a real production requirement:
+//   - PressureEquilibriumMaxFlow(GasSystem*) tested an overload that is not
+//     used anywhere in production code, and contained a copy-paste bug
+//     (re-used maxFlowIn where maxFlowOut was intended).
+//   - PressureEquilibriumMaxFlowInfinite / ...Overpressure called the scalar
+//     overload (which IS used by flow()) directly, but with an incorrect
+//     manual sign/call sequence: pressureEquilibriumMaxFlow() returns a
+//     *signed* flow, and production flow() negates it before gainN()
+//     (see gas_system.cpp). The tests passed the signed value straight
+//     through, which drove pressure the wrong way (toward 0, not P_env).
+// The production behaviour these tests attempted to validate - a system
+// equilibrating to an environment pressure through flow() - is already
+// covered by the FlowLimit and PressureEqualizationEnergyConservation tests
+// below, which use the real, bounded flow() path. Per the project testing
+// principles (tests must add real business value; test real production code
+// paths, not internal helpers with bespoke call sequences), these low-value
+// white-box tests were removed rather than patched.
 
 TEST(GasSystemTests, FlowVariableVolume) {
     GasSystem system1;
@@ -184,7 +151,7 @@ TEST(GasSystemTests, FlowVariableVolume) {
         system1.changeVolume(-dV);
         system1.changeTemperature(100);
 
-        std::cerr << flowRate0 << ", " << flowRate1 << "\n";
+        //std::cerr << flowRate0 << ", " << flowRate1 << "\n";
     }
 }
 
@@ -199,7 +166,7 @@ TEST(GasSystemTests, PowerStrokeTest) {
     [[maybe_unused]] constexpr double dV = units::volume(1000000.0, units::cc) / 100;
     for (int i = 0; i < 100; ++i) {
         const double flowRate0 = system1.flow(1.0, 1 / 60.0, units::pressure(1.0, units::atm), units::celcius(25.0));
-        std::cerr << i << ", " << flowRate0 << ", " << system1.pressure() << "\n";
+        //std::cerr << i << ", " << flowRate0 << ", " << system1.pressure() << "\n";
     }
 }
 
@@ -250,7 +217,8 @@ TEST(GasSystemTests, IntakeStrokeTest) {
     }
 
     csv.m_rows = 100 + 1;
-    csv.writeCsv("intake_stroke.csv");
+    const auto intakePath = testOutputPath("intake_stroke.csv");
+    csv.writeCsv(intakePath.c_str());
     csv.destroy();
 }
 
@@ -326,7 +294,7 @@ TEST(GasSystemTests, CompositionSanityCheck) {
 
     for (int i = 0; i < 200; ++i) {
         const double flowRate = GasSystem::flow(params);
-        std::cerr << i << ", " << flowRate << ", " << system1.pressure() << "\n";
+        //std::cerr << i << ", " << flowRate << ", " << system1.pressure() << "\n";
     }
 
     EXPECT_NEAR(system2.mix().p_fuel, 1.0, 2E-2);
@@ -499,7 +467,8 @@ TEST(GasSystemTests, GasVelocityReducesStaticPressure) {
     EXPECT_NEAR(finalMolecules, initialMolecules, 1E-6);
     EXPECT_NEAR(finalSystemEnergy, initialSystemEnergy, 1E-4);
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    const auto outPath = testOutputPath("gas_system_test_output.csv");
+    csv.writeCsv(outPath.c_str(), nullptr, '\t');
     csv.destroy();
 }
 
@@ -631,7 +600,8 @@ TEST(GasSystemTests, GasVelocityProducesScavengingEffect) {
         csv.write(std::to_string(exhaustStaticPressure).c_str());
     }
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    const auto outPath = testOutputPath("gas_system_test_output.csv");
+    csv.writeCsv(outPath.c_str(), nullptr, '\t');
     csv.destroy();
 }
 
@@ -772,7 +742,8 @@ TEST(GasSystemTests, GasVelocityProducesRamEffect) {
         csv.write(std::to_string(P_1).c_str());
     }
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    const auto outPath = testOutputPath("gas_system_test_output.csv");
+    csv.writeCsv(outPath.c_str(), nullptr, '\t');
     csv.destroy();
 
     const double delay = max_n_angle - max_v_angle;
@@ -814,6 +785,7 @@ TEST(GasSystemTests, GasVelocityStabilizesInClosedSystem) {
         csv.write(std::to_string(system1.velocity_x()).c_str());
     }
 
-    csv.writeCsv("gas_system_test_output.csv", nullptr, '\t');
+    const auto outPath = testOutputPath("gas_system_test_output.csv");
+    csv.writeCsv(outPath.c_str(), nullptr, '\t');
     csv.destroy();
 }

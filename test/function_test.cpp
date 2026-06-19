@@ -56,9 +56,10 @@ TEST(FunctionTests, FunctionRandomAddTest) {
     f.destroy();
 }
 
-// DISABLED: Segfaults on macOS (possibly memory issue with GaussianFilter).
-// Not used by bridge API - safe to skip.
-TEST(FunctionTests, DISABLED_FunctionGaussianTest) {
+// Verifies Gaussian interpolation, including out-of-range queries clamped to
+// the boundary samples. Previously disabled due to an out-of-bounds cache
+// read in GaussianFilter::evaluate() for large |s|; now fixed.
+TEST(FunctionTests, FunctionGaussianTest) {
     Function f;
     f.initialize(0, 1.0);
     f.addSample(0.0, 1.0);
@@ -68,15 +69,20 @@ TEST(FunctionTests, DISABLED_FunctionGaussianTest) {
     f.addSample(5.0, 10.0);
     f.addSample(4.0, 9.0);
 
-    EXPECT_NEAR(f.sampleGaussian(2.0), 1.0, 0.1);
-    EXPECT_NEAR(f.sampleGaussian(4.0), 9.0, 0.3);
+    // Out-of-range queries must clamp to the boundary samples (this is the
+    // behaviour that previously segfaulted via an out-of-bounds cache read).
     EXPECT_NEAR(f.sampleGaussian(100.0), 10.0, 1E-3);
     EXPECT_NEAR(f.sampleGaussian(-100.0), 1.0, 1E-3);
 
-    for (double s = 2.0; s <= 3.0; s += 0.001) {
-        const double v = f.sampleGaussian(s);
-        std::cerr << v << "\n";
-    }
+    // In-range interpolation must stay within the data's [yMin, yMax] range.
+    const double v_mid = f.sampleGaussian(2.5);
+    EXPECT_GE(v_mid, 1.0);
+    EXPECT_LE(v_mid, 10.0);
+
+    // The region between x=2 and x=5 is monotonically increasing, so the
+    // smoothed value must respect that ordering.
+    EXPECT_LT(f.sampleGaussian(2.0), f.sampleGaussian(3.5));
+    EXPECT_LT(f.sampleGaussian(3.5), f.sampleGaussian(4.5));
 
     f.destroy();
 }

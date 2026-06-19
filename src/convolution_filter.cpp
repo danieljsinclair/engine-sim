@@ -35,6 +35,16 @@ void ConvolutionFilter::destroy() {
 }
 
 float ConvolutionFilter::f(float sample) {
+    // Identity until initialize() allocates the shift register / impulse
+    // response. Without this guard, rendering a Synthesizer before its
+    // impulse responses are configured (e.g. before
+    // initializeImpulseResponse() is called) dereferences the null
+    // m_shiftRegister and crashes. A convolution with no impulse response
+    // is the identity.
+    if (m_shiftRegister == nullptr || m_sampleCount <= 0) {
+        return sample;
+    }
+
     m_shiftRegister[m_shiftOffset] = sample;
 
     float result = 0;

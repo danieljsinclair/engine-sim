@@ -420,6 +420,13 @@ if(NOT MSVC)
     )
 endif()
 
+# Diagnostic output (CSV, .dat) MUST land under the build dir (gitignored),
+# never the CWD/repo root. gas_system_tests writes relative-path CSVs; without
+# this they land wherever the binary runs (repo root under ctest/coverage).
+target_compile_definitions(engine-sim-test PRIVATE
+    TEST_OUTPUT_DIR="${CMAKE_BINARY_DIR}/test-output"
+)
+
 target_link_libraries(engine-sim-test
     gtest_main
     engine-sim

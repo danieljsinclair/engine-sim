@@ -32,9 +32,15 @@ void GaussianFilter::initialize(double alpha, double radius, int cacheSteps) {
 double GaussianFilter::evaluate(double s) const {
     const int actualSteps = m_cacheSteps - 32;
     const double s_sample = actualSteps * std::abs(s) * m_inv_r;
-    const double s0 = std::floor(s_sample);
-    const double s1 = std::ceil(s_sample);
-    const double d = s_sample - s0;
+
+    // Clamp to the valid cache range [0, actualSteps]. Out-of-range queries
+    // (|s| > m_radius) correspond to the Gaussian's tail, which the cache
+    // represents as 0 beyond actualSteps. Without this clamp, large |s|
+    // produced an out-of-bounds cache read (segfault).
+    const double s_clamped = std::fmin(s_sample, (double)actualSteps);
+    const double s0 = std::floor(s_clamped);
+    const double s1 = std::ceil(s_clamped);
+    const double d = s_clamped - s0;
 
     return
         (1 - d) * m_cache[(int)s0]
