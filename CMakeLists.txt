@@ -397,7 +397,14 @@ target_include_directories(engine-sim-app
 add_subdirectory(dependencies)
 
 # GTEST
-
+#
+# DELEGATION model: engine-sim self-registers its physics safety-net tests
+# whether it is built standalone OR pulled in as a subdirectory by a parent
+# project (e.g. engine-sim-bridge). The parent project is responsible only
+# for ensuring the engine-sim-test binary is built (it un-excludes the target
+# from EXCLUDE_FROM_ALL) and for tiering the registered tests by prefix
+# (test-core skips them, test-deep runs them). engine-sim owns its own
+# registration here — the parent never adds its own add_test() for engine-sim.
 enable_testing()
 
 add_executable(engine-sim-test
@@ -412,6 +419,13 @@ if(NOT MSVC)
         -Wno-unused-variable
     )
 endif()
+
+# Diagnostic output (CSV, .dat) MUST land under the build dir (gitignored),
+# never the CWD/repo root. gas_system_tests writes relative-path CSVs; without
+# this they land wherever the binary runs (repo root under ctest/coverage).
+target_compile_definitions(engine-sim-test PRIVATE
+    TEST_OUTPUT_DIR="${CMAKE_BINARY_DIR}/test-output"
+)
 
 target_link_libraries(engine-sim-test
     gtest_main
