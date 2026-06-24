@@ -4,6 +4,7 @@
 #include "vehicle.h"
 #include "engine.h"
 #include "scs.h"
+#include "torque_converter.h"
 
 class Transmission {
     public:
@@ -11,6 +12,8 @@ class Transmission {
             int GearCount;
             const double *GearRatios;
             double MaxClutchTorque;
+            // Optional torque converter (nullptr = use friction clutch only)
+            const atg_scs::TorqueConverter::Parameters *TorqueConverterParams = nullptr;
         };
 
     public:
@@ -35,9 +38,12 @@ class Transmission {
         inline double getGearRatio(int i) const { return m_gearRatios[i]; }
         inline double getMaxClutchTorque() const { return m_maxClutchTorque; }
         inline const atg_scs::ClutchConstraint& getClutchConstraint() const { return m_clutchConstraint; }
+        inline bool hasTorqueConverter() const { return m_torqueConverter != nullptr; }
+        inline atg_scs::TorqueConverter* getTorqueConverter() { return m_torqueConverter; }
 
     protected:
         atg_scs::ClutchConstraint m_clutchConstraint;
+        atg_scs::TorqueConverter *m_torqueConverter;  // nullable, owned by this Transmission
         atg_scs::RigidBody *m_rotatingMass;
         Vehicle *m_vehicle;
 
