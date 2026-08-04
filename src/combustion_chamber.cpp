@@ -9,6 +9,7 @@
 #include "../include/cylinder_bank.h"
 #include "../include/engine.h"
 
+#include <algorithm>
 #include <cmath>
 
 CombustionChamber::CombustionChamber() {
@@ -442,3 +443,249 @@ double CombustionChamber::getFrictionForce() const {
 
     return calculateFrictionForce(v_s);
 }
+
+#ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
+
+// Combustion energy released per mole of afterfire fuel burned (synthetic
+// reference value used to size the exhaust pressure spike). Guarded effect:
+// real combustion enthalpy depends on the charge; this is a fixed tunable.
+namespace {
+    constexpr double kEnergyPerMolFuel =
+        units::energy(48.1, units::kJ) / units::mass(1.0, units::g)
+        * units::mass(100.0, units::g);
+}
+
+// ============================================================================
+// Afterfire — firing logic (GREEN phase).
+//
+// A pop fires on OVERRUN: the throttle is cut (closed pedal), RPM is above the
+// auto-ignition floor, and the chamber is in a genuine deceleration window.
+// Unburnt fuel reaching the hot exhaust is modelled by injecting a synthetic
+// fuel charge into the exhaust runner and reacting it above auto-ignition,
+// releasing energy as a pressure spike. Cooldown and probability gating apply.
+// ============================================================================
+
+void CombustionChamber::setAfterfireParameters(const AfterfireParameters &parameters) {
+    m_afterfireParameters = parameters;
+    m_afterfireEnabled = parameters.enabled;
+}
+
+CombustionChamber::AfterfireParameters CombustionChamber::getAfterfireParameters() const {
+    return m_afterfireParameters;
+}
+
+void CombustionChamber::enableAfterfire(bool enabled) {
+    m_afterfireEnabled = enabled;
+    m_afterfireParameters.enabled = enabled;
+}
+
+bool CombustionChamber::isAfterfireEnabled() const {
+    return m_afterfireEnabled;
+}
+
+double CombustionChamber::getAfterfireCooldownRemainingMs() const {
+    return m_afterfireCooldownRemainingMs;
+}
+
+void CombustionChamber::setAfterfireCooldownRemainingMs(double ms) {
+    m_afterfireCooldownRemainingMs = ms;
+}
+
+void CombustionChamber::tickAfterfireCooldown(double dtMs) {
+    m_afterfireCooldownRemainingMs =
+        std::max(0.0, m_afterfireCooldownRemainingMs - dtMs);
+}
+
+bool CombustionChamber::hasAfterfirePulse() const {
+    return m_afterfirePulseRemainingMs > 0.0;
+}
+
+void CombustionChamber::tickAfterfirePulse(double dtMs) {
+    m_afterfirePulseRemainingMs =
+        std::max(0.0, m_afterfirePulseRemainingMs - dtMs);
+}
+
+// Overrun detection and gating. Returns true only when a pop is actually
+// permitted this step for this chamber. Diagnostics counters record every
+// declined gate so the test/diagnostics channel can explain a zero-event run.
+bool CombustionChamber::shouldTriggerAfterfire(
+    double throttle,
+    double rpm,
+    int globalEventsInDecel)
+{
+    if (!m_afterfireEnabled) return false;
+
+    // Throttle not cut: pedal applied, not an overrun. Reset the per-chamber
+    // decel window so a later cut starts a fresh window.
+    if (throttle > m_afterfireParameters.throttleCutoff) {
+        m_afterfireInDecel = false;
+        m_afterfireDecelElapsedMs = 0.0;
+        m_afterfireDiagnostics.eventsInCurrentDecel = 0;
+        ++m_afterfireDiagnostics.skippedThrottle;
+        return false;
+    }
+
+    // Below the auto-ignition RPM floor the exhaust cannot light off.
+    if (rpm < m_afterfireParameters.rpmMin) {
+        ++m_afterfireDiagnostics.skippedLowRpm;
+        return false;
+    }
+
+    // Sustained-decel window: open it when we enter overrun or RPM rises again
+    // (a genuine deceleration must be a falling-RPM trend, not per-step noise).
+    const double rpmDelta = m_afterfireLastRpm - rpm;
+    if (!m_afterfireInDecel || rpmDelta > 5.0) {
+        m_afterfireInDecel = true;
+        m_afterfireDecelElapsedMs = 0.0;
+        m_afterfireDiagnostics.eventsInCurrentDecel = 0;
+    }
+    m_afterfireLastRpm = rpm;
+
+    if (m_afterfireInDecel && rpmDelta < -2.0 && m_afterfireDecelElapsedMs > 0) {
+        // RPM rising again: close the decel window.
+        m_afterfireInDecel = false;
+        m_afterfireDecelElapsedMs = 0.0;
+        m_afterfireDiagnostics.eventsInCurrentDecel = 0;
+    }
+
+    if (m_afterfireDecelElapsedMs > m_afterfireParameters.decelWindowMs) {
+        ++m_afterfireDiagnostics.skippedMaxEvents;
+        return false;
+    }
+    if (m_afterfireDecelElapsedMs < 0.0) {
+        ++m_afterfireDiagnostics.skippedNoOverrun;
+        return false;
+    }
+
+    // Global (cross-chamber) cap for this decel.
+    if (globalEventsInDecel >= m_afterfireParameters.maxEventsPerDecel) {
+        ++m_afterfireDiagnostics.skippedMaxEvents;
+        return false;
+    }
+
+    // Per-chamber simulation-time cooldown.
+    if (m_afterfireCooldownRemainingMs > 0.0) {
+        ++m_afterfireDiagnostics.skippedCooldown;
+        return false;
+    }
+
+    // Probability gate (deterministic when probability == 1.0).
+    const double p = clamp(m_afterfireParameters.probability, 0.0, 1.0);
+    if (p < 1.0 && (static_cast<double>(rand()) / static_cast<double>(RAND_MAX)) > p) {
+        ++m_afterfireDiagnostics.skippedProbability;
+        return false;
+    }
+
+    return true;
+}
+
+// Bookkeeping records a fired pop and arms the per-chamber cooldown/pulse.
+void CombustionChamber::recordAfterfireEvent(
+    double throttle,
+    double rpm,
+    double peakPressure,
+    double energyReleased)
+{
+    m_lastAfterfirePeakPressure = peakPressure;
+    m_lastAfterfireEnergyReleased = energyReleased;
+    m_afterfireDiagnostics.lastEventRpm = rpm;
+    m_afterfireDiagnostics.lastEventThrottle = throttle;
+    m_afterfireDiagnostics.lastEventPeakPressure = peakPressure;
+    m_afterfireDiagnostics.lastEventEnergyReleased = energyReleased;
+    m_afterfireDiagnostics.eventsInCurrentDecel = 1;
+    m_afterfireCooldownRemainingMs = m_afterfireParameters.cooldownMs;
+    m_afterfirePulseRemainingMs = m_afterfirePulseDurationMs;
+    ++m_afterfireEventCount;
+}
+
+bool CombustionChamber::tickAfterfire(double throttle, double rpm, int globalEventsInDecel) {
+    if (!shouldTriggerAfterfire(throttle, rpm, globalEventsInDecel)) return false;
+    // Only count when a pop is actually generated — triggerAfterfire can still
+    // abort on gating, and counting those aborts would inflate the global cap.
+    return triggerAfterfire(m_afterfireParameters.intensity, throttle, rpm);
+}
+
+void CombustionChamber::triggerAfterfire(double intensity) {
+    const double throttle = (m_engine != nullptr)
+        ? m_engine->getThrottle()
+        : 0.0;
+    const double rpm = (m_engine != nullptr)
+        ? m_engine->getSpeed() * 60.0 / (2.0 * constants::pi)
+        : 0.0;
+
+    triggerAfterfire(intensity, throttle, rpm);
+}
+
+// Inject a synthetic unburnt-fuel charge into the hot exhaust runner and react
+// it (light-off above auto-ignition), releasing energy as a pressure spike.
+bool CombustionChamber::triggerAfterfire(double intensity, double throttle, double rpm) {
+    if (!shouldTriggerAfterfire(throttle, rpm, 0)) {
+        return false;
+    }
+
+    const double clampedIntensity = clamp(intensity, 0.0, 1.0);
+    const double clampedFuelFraction = clamp(m_afterfireParameters.fuelFraction, 0.0, 0.02);
+
+    // Under closed-throttle overrun the exhaust runner is depleted (n() -> 0),
+    // which would skip the pop or make it inaudible. Floor the reference mole
+    // count so the effect stays consistent — this is a guarded synthetic charge.
+    constexpr double nFloor = 0.01;  // mol
+    const double nReference = std::max(m_exhaustRunnerAndPrimary.n(), nFloor);
+    const double nFuel = nReference * clampedFuelFraction * clampedIntensity;
+    if (nFuel <= 0.0) return false;
+
+    m_exhaustRunnerAndPrimary.injectFuel(nFuel);
+
+    GasSystem::Mix afterfireMix;
+    afterfireMix.p_fuel = 0.08;
+    afterfireMix.p_inert = 0.67;
+    afterfireMix.p_o2 = 0.25;
+
+    m_exhaustRunnerAndPrimary.react(nFuel, afterfireMix);
+
+    const double energyReleased = nFuel * kEnergyPerMolFuel;
+    m_exhaustRunnerAndPrimary.changeEnergy(energyReleased);
+
+    const double postPressure = m_exhaustRunnerAndPrimary.pressure();
+    recordAfterfireEvent(throttle, rpm, postPressure, energyReleased);
+    return true;
+}
+
+double CombustionChamber::getLastAfterfirePeakPressure() const {
+    return m_lastAfterfirePeakPressure;
+}
+
+double CombustionChamber::getLastAfterfireEnergyReleased() const {
+    return m_lastAfterfireEnergyReleased;
+}
+
+int CombustionChamber::getAfterfireEventCount() const {
+    return m_afterfireEventCount;
+}
+
+double CombustionChamber::getLastAfterfireRpm() const {
+    return m_afterfireDiagnostics.lastEventRpm;
+}
+
+CombustionChamber::AfterfireDiagnostics CombustionChamber::getAfterfireDiagnostics() const {
+    AfterfireDiagnostics diagnostics = m_afterfireDiagnostics;
+    diagnostics.eventCount = m_afterfireEventCount;
+    diagnostics.lastEventPeakPressure = m_lastAfterfirePeakPressure;
+    diagnostics.lastEventEnergyReleased = m_lastAfterfireEnergyReleased;
+
+    return diagnostics;
+}
+
+void CombustionChamber::resetAfterfireDiagnostics() {
+    m_afterfireDiagnostics = AfterfireDiagnostics{};
+    m_lastAfterfirePeakPressure = 0.0;
+    m_lastAfterfireEnergyReleased = 0.0;
+    m_afterfireEventCount = 0;
+    m_afterfireInDecel = false;
+    m_afterfireLastRpm = 0.0;
+    m_afterfireDecelElapsedMs = 0.0;
+    m_afterfireCooldownRemainingMs = 0.0;
+    m_afterfirePulseRemainingMs = 0.0;
+}
+
+#endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */

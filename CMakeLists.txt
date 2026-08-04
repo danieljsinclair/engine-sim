@@ -10,6 +10,7 @@ endif()
 option(DTV "Enable video output" OFF)
 option(PIRANHA_ENABLED "Enable scripting input" ON)
 option(DISCORD_ENABLED "Enable Discord Rich Presence" ON)
+option(ATG_ENGINE_SIM_AFTERFIRE_SPIKE "Enable exhaust afterfire spike" OFF)
 
 if (DTV)
     add_compile_definitions(ATG_ENGINE_SIM_VIDEO_CAPTURE)
@@ -22,6 +23,16 @@ endif (PIRANHA_ENABLED)
 if (DISCORD_ENABLED)
     add_compile_definitions(ATG_ENGINE_SIM_DISCORD_ENABLED)
 endif (DISCORD_ENABLED)
+
+# Afterfire spike. NOTE (ODR): the macro adds members to CombustionChamber, so it
+# changes sizeof(CombustionChamber). Engine::getChamber() is an INLINE function that
+# indexes an array of chambers, so any translation unit that sees the headers must
+# agree on the macro or it will compute wrong addresses. The definition is therefore
+# also applied PUBLIC on the engine-sim target (see below) so it propagates
+# transitively to every consumer instead of relying on each one opting in.
+if (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+    add_compile_definitions(ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+endif (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
 
 # Enable group projects in folders
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -148,6 +159,14 @@ add_library(engine-sim STATIC
 target_link_libraries(engine-sim
     PUBLIC simple-2d-constraint-solver
     PUBLIC csv-io)
+
+# PUBLIC (not PRIVATE) on purpose: the macro changes sizeof(CombustionChamber) and
+# Engine::getChamber() is inline, so every consumer of these headers must compile
+# with the same definition or chamber addressing silently diverges (ODR/layout
+# mismatch). PUBLIC makes CMake propagate it to all dependents automatically.
+if (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+    target_compile_definitions(engine-sim PUBLIC ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+endif (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
 
 # Enable compiler warnings as errors
 if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")

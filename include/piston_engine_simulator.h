@@ -35,6 +35,27 @@ class PistonEngineSimulator : public Simulator {
 
         DerivativeFilter m_derivativeFilter;
 
+#ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
+    public:
+        // Called once per simulateStep_() after the fluid substeps complete.
+        // Owns the CROSS-CHAMBER concerns (decel window, global pop spacing) and
+        // delegates the per-chamber decision to CombustionChamber::tickAfterfire,
+        // so neither class duplicates the other's gating (SRP).
+        void tickAfterfire(double dt, double throttle, double rpm);
+
+    protected:
+        // Global decel state is owned by the simulator instance — deliberately not
+        // file-scope statics, so two simulators in one process cannot interfere.
+        bool m_afterfireGlobalInDecel = false;
+        double m_afterfireGlobalDecelElapsedMs = 0.0;
+        double m_afterfireGlobalLastRpm = 0.0;
+        int m_afterfireGlobalEventsInDecel = 0;
+        // Minimum sim-time between any two pops across all chambers. Without this
+        // every eligible chamber fires on the same step and the effect is a single
+        // burst rather than a sequence of crackles.
+        double m_afterfireGlobalPopCooldownMs = 0.0;
+#endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */
+
     protected:
         virtual void simulateStep_() override;
 

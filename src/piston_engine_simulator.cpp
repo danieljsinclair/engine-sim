@@ -314,6 +314,13 @@ void PistonEngineSimulator::simulateStep_() {
         }
     }
 
+#ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
+    if (m_engine != nullptr) {
+        const double rpm = m_engine->getSpeed() * 60.0 / (2.0 * constants::pi);
+        tickAfterfire(timestep, m_engine->getThrottle(), rpm);
+    }
+#endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */
+
     im->resetIgnitionEvents();
 }
 
@@ -325,6 +332,70 @@ double PistonEngineSimulator::getTotalExhaustFlow() const {
 
     return totalFlow;
 }
+
+#ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
+// GREEN phase: advance per-chamber timers, track the cross-chamber decel window,
+// apply global inter-pop spacing, then fire at most one eligible chamber per step.
+void PistonEngineSimulator::tickAfterfire(double dt, double throttle, double rpm) {
+    const int cylinderCount = (m_engine != nullptr)
+        ? m_engine->getCylinderCount()
+        : 0;
+    if (cylinderCount <= 0) return;
+
+    // Tick per-chamber cooldowns and audible pulse windows (simulation-time).
+    const double dtMs = dt * 1000.0;
+    for (int i = 0; i < cylinderCount; ++i) {
+        CombustionChamber *chamber = m_engine->getChamber(i);
+        chamber->tickAfterfireCooldown(dtMs);
+        chamber->tickAfterfirePulse(dtMs);
+    }
+
+    const double throttleCutoff = (m_engine->getChamber(0) != nullptr)
+        ? m_engine->getChamber(0)->getAfterfireParameters().throttleCutoff
+        : 0.0;
+
+    // Throttle applied: reset global decel tracking.
+    if (throttle > throttleCutoff) {
+        if (m_afterfireGlobalInDecel) {
+            m_afterfireGlobalInDecel = false;
+            m_afterfireGlobalDecelElapsedMs = 0.0;
+            m_afterfireGlobalEventsInDecel = 0;
+        }
+        return;
+    }
+
+    const bool rpmFalling = rpm < m_afterfireGlobalLastRpm - 20.0;
+    if (!m_afterfireGlobalInDecel || rpmFalling) {
+        m_afterfireGlobalInDecel = true;
+        m_afterfireGlobalDecelElapsedMs = 0.0;
+        m_afterfireGlobalEventsInDecel = 0;
+    }
+    m_afterfireGlobalLastRpm = rpm;
+    m_afterfireGlobalDecelElapsedMs += dtMs;
+
+    // Global inter-pop spacing: refuse to fire until enough sim-time has passed
+    // since the last pop. This spreads a startup burst into a sequence of cracks.
+    m_afterfireGlobalPopCooldownMs =
+        std::max(0.0, m_afterfireGlobalPopCooldownMs - dtMs);
+    const double globalPopIntervalMs = (m_engine->getChamber(0) != nullptr)
+        ? m_engine->getChamber(0)->getAfterfireParameters().globalPopIntervalMs
+        : 0.0;
+    if (globalPopIntervalMs > 0.0 && m_afterfireGlobalPopCooldownMs > 0.0) {
+        return;
+    }
+
+    // At most one afterfire event per step across all chambers: fire the first
+    // eligible chamber to keep the sequence sparse.
+    for (int i = 0; i < cylinderCount; ++i) {
+        CombustionChamber *chamber = m_engine->getChamber(i);
+        if (chamber->tickAfterfire(throttle, rpm, m_afterfireGlobalEventsInDecel)) {
+            ++m_afterfireGlobalEventsInDecel;
+            m_afterfireGlobalPopCooldownMs = globalPopIntervalMs;
+            break;
+        }
+    }
+}
+#endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */
 
 void PistonEngineSimulator::endFrame() {
     Simulator::endFrame();

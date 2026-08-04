@@ -92,6 +92,94 @@ class CombustionChamber : public atg_scs::ForceGenerator {
         double m_peakTemperature;
         double m_nBurntFuel;
 
+#ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
+    public:
+        // Tuning for the exhaust afterfire ("pop on overrun") effect. All gating
+        // thresholds live here so the firing decision stays data-driven.
+        struct AfterfireParameters {
+            bool enabled = false;
+            double intensity = 0.18;
+            double cooldownMs = 360.0;
+            double throttleCutoff = 0.04;
+            double rpmMin = 3000.0;
+            double fuelFraction = 0.0018;
+            double probability = 0.012;
+            double decelWindowMs = 1200.0;
+            int maxEventsPerDecel = 5;
+            double rpmFallThreshold = 120.0;    // rpm drop per step that counts as overrun
+            double globalPopIntervalMs = 500.0; // min sim-time between any two pops
+            bool diagnostics = false;
+        };
+
+        // Observable counters. eventCount is the value the acceptance test asserts on;
+        // the skipped* counters exist so a non-firing engine can be diagnosed by
+        // reason rather than by guesswork.
+        struct AfterfireDiagnostics {
+            int eventCount = 0;
+            int skippedCooldown = 0;
+            int skippedLowRpm = 0;
+            int skippedThrottle = 0;
+            int skippedProbability = 0;
+            int skippedMaxEvents = 0;
+            int skippedCrankAngle = 0;
+            int skippedNoOverrun = 0;
+            int eventsInCurrentDecel = 0;
+            double lastEventRpm = 0.0;
+            double lastEventThrottle = 0.0;
+            double lastEventPeakPressure = 0.0;
+            double lastEventEnergyReleased = 0.0;
+        };
+
+        void setAfterfireParameters(const AfterfireParameters &parameters);
+        AfterfireParameters getAfterfireParameters() const;
+        void enableAfterfire(bool enabled);
+        bool isAfterfireEnabled() const;
+
+        // Force a pop, bypassing overrun detection (diagnostics / direct drive).
+        void triggerAfterfire(double intensity);
+        // Gated trigger: returns true only if a pop was actually generated.
+        bool triggerAfterfire(double intensity, double throttle, double rpm);
+
+        double getLastAfterfirePeakPressure() const;
+        double getLastAfterfireEnergyReleased() const;
+        int getAfterfireEventCount() const;
+        double getLastAfterfireRpm() const;
+        AfterfireDiagnostics getAfterfireDiagnostics() const;
+        void resetAfterfireDiagnostics();
+
+        // Per-chamber cooldown in SIMULATION time (not wall-clock), advanced by the
+        // owning simulator once per step so results stay deterministic.
+        double getAfterfireCooldownRemainingMs() const;
+        void setAfterfireCooldownRemainingMs(double ms);
+        void tickAfterfireCooldown(double dtMs);
+
+        // Evaluate gating and fire if eligible. Called once per sim step per chamber
+        // by PistonEngineSimulator::tickAfterfire. Returns true if a pop fired.
+        bool tickAfterfire(double throttle, double rpm, int globalEventsInDecel);
+
+        // Audible pulse window: true while a fired pop is still being mixed into
+        // the exhaust signal.
+        bool hasAfterfirePulse() const;
+        void tickAfterfirePulse(double dtMs);
+
+    protected:
+        bool shouldTriggerAfterfire(double throttle, double rpm, int globalEventsInDecel);
+        void recordAfterfireEvent(double throttle, double rpm, double peakPressure, double energyReleased);
+
+        AfterfireParameters m_afterfireParameters;
+        AfterfireDiagnostics m_afterfireDiagnostics;
+        double m_afterfireCooldownRemainingMs = 0.0;
+        double m_afterfireLastRpm = 0.0;
+        double m_afterfireDecelElapsedMs = 0.0;
+        double m_afterfirePulseRemainingMs = 0.0;
+        double m_afterfirePulseDurationMs = 60.0;
+        bool m_afterfireInDecel = false;
+        bool m_afterfireEnabled = false;
+        double m_lastAfterfirePeakPressure = 0.0;
+        double m_lastAfterfireEnergyReleased = 0.0;
+        int m_afterfireEventCount = 0;
+#endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */
+
     protected:
         double calculateFrictionForce(double v) const;
         void updateCycleStates();
