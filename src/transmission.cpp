@@ -13,6 +13,8 @@ Transmission::Transmission() {
     m_rotatingMass = nullptr;
     m_vehicle = nullptr;
     m_clutchPressure = 0.0;
+    m_inputTorque = 0.0;
+    m_inputTorqueGenerator.setOwner(this);
 }
 
 Transmission::~Transmission() {
@@ -39,6 +41,18 @@ void Transmission::update(double dt) {
         m_clutchConstraint.m_minTorque = -m_maxClutchTorque * m_clutchPressure;
         m_clutchConstraint.m_maxTorque = m_maxClutchTorque * m_clutchPressure;
     }
+
+    // NOTE: MATCH-mode driving torque is NOT applied here. update() runs AFTER
+    // m_system->process() each frame (simulator.cpp:110 then :114), so anything
+    // written here would miss the solve. The recorded input torque is applied
+    // by the TransmissionInputTorqueGenerator (a ForceGenerator) during
+    // processForces(), accumulating into SystemState::t[rotatingMass] so the ODE
+    // integrates it before the clutch constraint solves — see apply() below.
+    (void)dt;
+}
+
+void Transmission::setInputTorque(double nm) {
+    m_inputTorque = nm;
 }
 
 void Transmission::addToSystem(
@@ -54,6 +68,22 @@ void Transmission::addToSystem(
     m_clutchConstraint.setBody2(m_rotatingMass);
 
     system->addConstraint(&m_clutchConstraint);
+
+    // MATCH mode: register the input-torque generator so the recorded torque is
+    // accumulated onto the rotating mass during processForces each frame.
+    system->addForceGenerator(&m_inputTorqueGenerator);
+}
+
+void TransmissionInputTorqueGenerator::apply(atg_scs::SystemState* system) {
+    if (m_owner == nullptr) return;
+
+    const double torque = m_owner->effectiveInputTorque();
+    if (torque == 0.0) return;  // no-op for FREE/PIN and neutral/idle frames
+
+    const atg_scs::RigidBody* body = m_owner->inputTorqueBody();
+    if (body != nullptr) {
+        system->t[body->index] += torque;
+    }
 }
 
 void Transmission::changeGear(int newGear) {
