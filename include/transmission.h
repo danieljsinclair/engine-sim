@@ -4,6 +4,9 @@
 #include "vehicle.h"
 #include "engine.h"
 #include "scs.h"
+#include "torque_converter.h"
+
+#include <memory>
 
 class Transmission {
     public:
@@ -11,6 +14,11 @@ class Transmission {
             int GearCount;
             const double *GearRatios;
             double MaxClutchTorque;
+            // Optional fluid coupling. Null (the default) keeps the historic
+            // friction-clutch-only drivetrain, so existing callers are
+            // unaffected. When supplied, the converter is added ALONGSIDE the
+            // friction clutch, which stays on its real bodies for gear shifts.
+            const TorqueConverter::Parameters *TorqueConverterParams = nullptr;
         };
 
     public:
@@ -35,9 +43,12 @@ class Transmission {
         inline double getGearRatio(int i) const { return m_gearRatios[i]; }
         inline double getMaxClutchTorque() const { return m_maxClutchTorque; }
         inline const atg_scs::ClutchConstraint& getClutchConstraint() const { return m_clutchConstraint; }
+        inline bool hasTorqueConverter() const { return m_torqueConverter != nullptr; }
+        inline TorqueConverter *getTorqueConverter() const { return m_torqueConverter.get(); }
 
     protected:
         atg_scs::ClutchConstraint m_clutchConstraint;
+        std::unique_ptr<TorqueConverter> m_torqueConverter;
         atg_scs::RigidBody *m_rotatingMass;
         Vehicle *m_vehicle;
 
