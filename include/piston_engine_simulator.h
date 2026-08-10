@@ -35,6 +35,16 @@ class PistonEngineSimulator : public Simulator {
 
         DerivativeFilter m_derivativeFilter;
 
+#ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
+    public:
+        // Called once per simulateStep_(), after the fluid substeps have updated
+        // every runner's temperature and mixture. It only advances each chamber's
+        // own auto-ignition chemistry — there is no cross-chamber scheduling,
+        // decel window or pop spacing to own, because a pop is now a local
+        // consequence of that runner's gas state (SRP: the chamber decides).
+        void tickAfterfire(double dt);
+#endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */
+
     protected:
         virtual void simulateStep_() override;
 
@@ -55,6 +65,19 @@ class PistonEngineSimulator : public Simulator {
         atg_scs::LinkConstraint *m_linkConstraints;
 
         double *m_exhaustFlowStagingBuffer;
+
+        // Per-channel afterfire pop-rendering state.
+        //
+        // A fired pop MIXES a custom WAV onto its exhaust channel's audio output
+        // (Synthesizer::triggerPop), alongside the engine's continuing exhaust
+        // convolution — the channel's impulse response is never touched, so the
+        // engine note is never interrupted. The synthesizer owns one
+        // OneShotSampleMixer per channel (Synthesizer::m_popMixers); the
+        // simulator's only bookkeeping here is the gain to mix each channel's pop
+        // at (per exhaust channel, since a V-engine shares one channel across
+        // several cylinders and we want the crack at a consistent level regardless
+        // of which cylinder fired it).
+        std::vector<float> m_customAfterfireGain;
 
         int m_fluidSimulationSteps;
 };

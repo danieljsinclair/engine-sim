@@ -3,6 +3,7 @@
 #include "../include/utilities.h"
 // #include "../include/delta.h"  // Disabled - not needed for CLI build
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 
@@ -26,6 +27,7 @@ Synthesizer::Synthesizer() {
     m_run = true;
     m_thread = nullptr;
     m_filters = nullptr;
+    m_popMixers = nullptr;
 }
 
 Synthesizer::~Synthesizer() {
@@ -73,6 +75,11 @@ void Synthesizer::initialize(const Parameters &p) {
         m_filters[i].antialiasing.setCutoffFrequency(1900.0f, m_audioSampleRate);
     }
 
+    // One pop mixer per exhaust channel. Idle until a chamber fires a pop on that
+    // channel (Synthesizer::triggerPop). Sized to the channel count so
+    // renderAudio() can index it directly.
+    m_popMixers = new OneShotSampleMixer[p.inputChannelCount];
+
     m_levelingFilter.p_target = m_audioParameters.levelerTarget;
     m_levelingFilter.p_maxLevel = m_audioParameters.levelerMaxGain;
     m_levelingFilter.p_minLevel = m_audioParameters.levelerMinGain;
@@ -104,6 +111,15 @@ void Synthesizer::initializeImpulseResponse(
     }
 }
 
+void Synthesizer::triggerPop(int index, const int16_t *samples, size_t count, float gain) {
+    if (index < 0 || index >= m_inputChannelCount) return;
+    if (m_popMixers == nullptr) return;
+
+    // Non-owning view into the chamber's stored samples. The chamber owns the
+    // backing memory and outlives the pop (pops are short vs. a chamber's life).
+    m_popMixers[index].trigger(samples, count, gain);
+}
+
 void Synthesizer::startAudioRenderingThread() {
     m_run = true;
     m_thread = new std::thread(&Synthesizer::audioRenderingThread, this);
@@ -131,9 +147,11 @@ void Synthesizer::destroy() {
 
     delete[] m_inputChannels;
     delete[] m_filters;
+    delete[] m_popMixers;
 
     m_inputChannels = nullptr;
     m_filters = nullptr;
+    m_popMixers = nullptr;
 
     m_inputChannelCount = 0;
 }
@@ -353,6 +371,16 @@ int16_t Synthesizer::renderAudio(int inputSample) {
             + (1 - convAmount) * v_in;
 
         signal += v;
+
+        // Afterfire pop: add the one-shot sample mix into this channel's
+        // contribution. This runs WHILE the engine's convolution above continues
+        // uninterrupted, so the pop and the engine exhaust sound are simultaneous
+        // rather than mutually exclusive (the old IR-swap dropped the engine note
+        // for the pop's duration). m_popMixers is sized to the channel count in
+        // initialize(); a channel with no active pop is a silent no-op.
+        if (m_popMixers != nullptr) {
+            m_popMixers[i].addTo(signal);
+        }
     }
 
     signal = m_antialiasing.fast_f(signal);

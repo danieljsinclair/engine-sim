@@ -10,6 +10,7 @@ endif()
 option(DTV "Enable video output" OFF)
 option(PIRANHA_ENABLED "Enable scripting input" ON)
 option(DISCORD_ENABLED "Enable Discord Rich Presence" ON)
+option(ATG_ENGINE_SIM_AFTERFIRE_SPIKE "Enable exhaust afterfire spike" OFF)
 
 if (DTV)
     add_compile_definitions(ATG_ENGINE_SIM_VIDEO_CAPTURE)
@@ -22,6 +23,16 @@ endif (PIRANHA_ENABLED)
 if (DISCORD_ENABLED)
     add_compile_definitions(ATG_ENGINE_SIM_DISCORD_ENABLED)
 endif (DISCORD_ENABLED)
+
+# Afterfire spike. NOTE (ODR): the macro adds members to CombustionChamber, so it
+# changes sizeof(CombustionChamber). Engine::getChamber() is an INLINE function that
+# indexes an array of chambers, so any translation unit that sees the headers must
+# agree on the macro or it will compute wrong addresses. The definition is therefore
+# also applied PUBLIC on the engine-sim target (see below) so it propagates
+# transitively to every consumer instead of relying on each one opting in.
+if (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+    add_compile_definitions(ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+endif (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
 
 # Enable group projects in folders
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -81,6 +92,7 @@ add_library(engine-sim STATIC
     src/jitter_filter.cpp
     src/leveling_filter.cpp
     src/low_pass_filter.cpp
+    src/one_shot_sample_mixer.cpp
     src/part.cpp
     src/piston.cpp
     src/piston_engine_simulator.cpp
@@ -91,6 +103,7 @@ add_library(engine-sim STATIC
     src/throttle.cpp
     src/transmission.cpp
     src/utilities.cpp
+    src/wav_loader.cpp
     src/valvetrain.cpp
     src/vehicle.cpp
     src/vehicle_drag_constraint.cpp
@@ -126,6 +139,7 @@ add_library(engine-sim STATIC
     include/jitter_filter.h
     include/leveling_filter.h
     include/low_pass_filter.h
+    include/one_shot_sample_mixer.h
     include/part.h
     include/piston.h
     include/piston_engine_simulator.h
@@ -148,6 +162,14 @@ add_library(engine-sim STATIC
 target_link_libraries(engine-sim
     PUBLIC simple-2d-constraint-solver
     PUBLIC csv-io)
+
+# PUBLIC (not PRIVATE) on purpose: the macro changes sizeof(CombustionChamber) and
+# Engine::getChamber() is inline, so every consumer of these headers must compile
+# with the same definition or chamber addressing silently diverges (ODR/layout
+# mismatch). PUBLIC makes CMake propagate it to all dependents automatically.
+if (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+    target_compile_definitions(engine-sim PUBLIC ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
+endif (ATG_ENGINE_SIM_AFTERFIRE_SPIKE)
 
 # Enable compiler warnings as errors
 if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
@@ -412,6 +434,7 @@ add_executable(engine-sim-test
     test/gas_system_tests.cpp
     test/function_test.cpp
     test/synthesizer_tests.cpp
+    test/afterfire_tests.cpp
 )
 
 if(NOT MSVC)
