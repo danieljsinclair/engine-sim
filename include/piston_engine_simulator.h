@@ -37,23 +37,12 @@ class PistonEngineSimulator : public Simulator {
 
 #ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
     public:
-        // Called once per simulateStep_() after the fluid substeps complete.
-        // Owns the CROSS-CHAMBER concerns (decel window, global pop spacing) and
-        // delegates the per-chamber decision to CombustionChamber::tickAfterfire,
-        // so neither class duplicates the other's gating (SRP).
-        void tickAfterfire(double dt, double throttle, double rpm);
-
-    protected:
-        // Global decel state is owned by the simulator instance — deliberately not
-        // file-scope statics, so two simulators in one process cannot interfere.
-        bool m_afterfireGlobalInDecel = false;
-        double m_afterfireGlobalDecelElapsedMs = 0.0;
-        double m_afterfireGlobalLastRpm = 0.0;
-        int m_afterfireGlobalEventsInDecel = 0;
-        // Minimum sim-time between any two pops across all chambers. Without this
-        // every eligible chamber fires on the same step and the effect is a single
-        // burst rather than a sequence of crackles.
-        double m_afterfireGlobalPopCooldownMs = 0.0;
+        // Called once per simulateStep_(), after the fluid substeps have updated
+        // every runner's temperature and mixture. It only advances each chamber's
+        // own auto-ignition chemistry — there is no cross-chamber scheduling,
+        // decel window or pop spacing to own, because a pop is now a local
+        // consequence of that runner's gas state (SRP: the chamber decides).
+        void tickAfterfire(double dt);
 #endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */
 
     protected:
@@ -76,6 +65,19 @@ class PistonEngineSimulator : public Simulator {
         atg_scs::LinkConstraint *m_linkConstraints;
 
         double *m_exhaustFlowStagingBuffer;
+
+        // Per-channel afterfire pop-rendering state.
+        //
+        // A fired pop MIXES a custom WAV onto its exhaust channel's audio output
+        // (Synthesizer::triggerPop), alongside the engine's continuing exhaust
+        // convolution — the channel's impulse response is never touched, so the
+        // engine note is never interrupted. The synthesizer owns one
+        // OneShotSampleMixer per channel (Synthesizer::m_popMixers); the
+        // simulator's only bookkeeping here is the gain to mix each channel's pop
+        // at (per exhaust channel, since a V-engine shares one channel across
+        // several cylinders and we want the crack at a consistent level regardless
+        // of which cylinder fired it).
+        std::vector<float> m_customAfterfireGain;
 
         int m_fluidSimulationSteps;
 };

@@ -8,9 +8,16 @@
 #include "../include/exhaust_system.h"
 #include "../include/cylinder_bank.h"
 #include "../include/engine.h"
+#include "../include/intake.h"
+#include "../include/wav_loader.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <limits>
+#include <filesystem>
+#include <random>
+#include <set>
 
 CombustionChamber::CombustionChamber() {
     m_crankcasePressure = 0.0;
@@ -446,28 +453,92 @@ double CombustionChamber::getFrictionForce() const {
 
 #ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
 
-// Combustion energy released per mole of afterfire fuel burned (synthetic
-// reference value used to size the exhaust pressure spike). Guarded effect:
-// real combustion enthalpy depends on the charge; this is a fixed tunable.
-namespace {
-    constexpr double kEnergyPerMolFuel =
-        units::energy(48.1, units::kJ) / units::mass(1.0, units::g)
-        * units::mass(100.0, units::g);
-}
-
 // ============================================================================
-// Afterfire — firing logic (GREEN phase).
+// Afterfire — auto-ignition of unburnt fuel in the exhaust runner.
 //
-// A pop fires on OVERRUN: the throttle is cut (closed pedal), RPM is above the
-// auto-ignition floor, and the chamber is in a genuine deceleration window.
-// Unburnt fuel reaching the hot exhaust is modelled by injecting a synthetic
-// fuel charge into the exhaust runner and reacting it above auto-ignition,
-// releasing energy as a pressure spike. Cooldown and probability gating apply.
+// This is a PHYSICAL model, not a scheduler. Nothing here asks "is the driver
+// coasting?", counts pops, rolls dice or waits out a cooldown. One question is
+// asked, once per simulation step, of the chamber's own exhaust runner:
+//
+//     has the unburnt fuel sitting in this pipe been hot enough, for long
+//     enough, to auto-ignite?
+//
+// Auto-ignition is not instantaneous. A fuel-air mixture held above its
+// auto-ignition temperature reacts only after an INDUCTION PERIOD tau(T) — the
+// time the pre-ignition chemistry needs to run away. tau is Arrhenius, so it
+// collapses exponentially as the gas gets hotter. The model integrates residence
+// against that clock:
+//
+//     progress += dt / tau(T)        ignition when progress reaches 1
+//
+// The competing process is SCAVENGING: exhaust flow sweeps the charge out of the
+// runner before the chemistry finishes, resetting progress. So a pop requires
+// hot gas AND weak flow, and that single race is what makes the effect select
+// overrun on its own:
+//
+//   - Under power the pipe is hottest (measured 2413 K at WOT) but every exhaust
+//     stroke blows the runner through, so the fuel never stays put long enough.
+//     A naive "fuel + heat" test would fire hardest HERE, which is exactly the
+//     wrong answer, and is why residence time — not temperature alone — has to
+//     be the discriminator.
+//   - On overrun the throttle is shut, so cylinder filling collapses and flow
+//     through the runner nearly stops, while the pipe is still soaked at
+//     1700 K+ from the preceding pull. Fuel now lingers, tau is short, and the
+//     integral completes: it pops.
+//   - As the pipe cools the exponential stretches tau out until the pops die
+//     away by themselves, which is what a real engine does on a long coast.
+//
+// The irregularity is likewise physical, not an rand() sprinkle. Runner
+// temperature, mixture and flow all oscillate with the firing cycle, so
+// progress climbs in uneven bursts and crosses 1 at genuinely uneven intervals.
 // ============================================================================
 
 void CombustionChamber::setAfterfireParameters(const AfterfireParameters &parameters) {
     m_afterfireParameters = parameters;
     m_afterfireEnabled = parameters.enabled;
+
+    // Resolve and load the custom afterfire pop samples, if any.
+    // afterfireWavPaths is the bridge-resolved, glob-expanded list of absolute
+    // candidate files (empty => use the engine's default exhaust IR). The pop is
+    // MIXED on top of the engine's continuing exhaust sound, so the full sample is
+    // kept at its native length and sample rate (the rate is remembered for
+    // resampling at mix time). A multi-channel WAV is downmixed to mono by
+    // averaging its channels; the synthesizer is mono per exhaust channel.
+    m_afterfireWavSamples.clear();
+    m_afterfireWavSampleRates.clear();
+    m_afterfireWavChosen = -1;
+    m_afterfireWavChosenCount = 0;
+    for (const std::string& path : parameters.afterfireWavPaths) {
+        if (path.empty()) continue;
+        WavLoader::Result wav = WavLoader::load(path);
+        if (!wav.valid || wav.getSampleCount() == 0) {
+            if (parameters.diagnostics) {
+                std::fprintf(stderr, "[AFTERFIRE] could not load afterfire WAV: %s\n", path.c_str());
+            }
+            continue;
+        }
+        const int channels = (wav.channels > 0) ? wav.channels : 1;
+        const size_t frameCount = wav.getSampleCount() / static_cast<size_t>(channels);
+        std::vector<int16_t> mono(frameCount);
+        if (channels == 1) {
+            std::copy(wav.getData(), wav.getData() + frameCount, mono.begin());
+        } else {
+            // Average the channels into mono (integer averaging, round to nearest).
+            for (size_t f = 0; f < frameCount; ++f) {
+                int32_t acc = 0;
+                for (int c = 0; c < channels; ++c) {
+                    acc += wav.getData()[f * channels + c];
+                }
+                mono[f] = static_cast<int16_t>((acc + channels / 2) / channels);
+            }
+        }
+        m_afterfireWavSamples.push_back(std::move(mono));
+        m_afterfireWavSampleRates.push_back(wav.sampleRate > 0 ? wav.sampleRate : 44100);
+    }
+    if (parameters.diagnostics && !m_afterfireWavSamples.empty()) {
+        std::fprintf(stderr, "[AFTERFIRE] loaded %zu custom pop WAV candidate(s)\n",
+                     m_afterfireWavSamples.size());
+    }
 }
 
 CombustionChamber::AfterfireParameters CombustionChamber::getAfterfireParameters() const {
@@ -483,17 +554,8 @@ bool CombustionChamber::isAfterfireEnabled() const {
     return m_afterfireEnabled;
 }
 
-double CombustionChamber::getAfterfireCooldownRemainingMs() const {
-    return m_afterfireCooldownRemainingMs;
-}
-
-void CombustionChamber::setAfterfireCooldownRemainingMs(double ms) {
-    m_afterfireCooldownRemainingMs = ms;
-}
-
-void CombustionChamber::tickAfterfireCooldown(double dtMs) {
-    m_afterfireCooldownRemainingMs =
-        std::max(0.0, m_afterfireCooldownRemainingMs - dtMs);
+double CombustionChamber::getAfterfireIgnitionProgress() const {
+    return m_afterfireIgnitionProgress;
 }
 
 bool CombustionChamber::hasAfterfirePulse() const {
@@ -505,150 +567,279 @@ void CombustionChamber::tickAfterfirePulse(double dtMs) {
         std::max(0.0, m_afterfirePulseRemainingMs - dtMs);
 }
 
-// Overrun detection and gating. Returns true only when a pop is actually
-// permitted this step for this chamber. Diagnostics counters record every
-// declined gate so the test/diagnostics channel can explain a zero-event run.
-bool CombustionChamber::shouldTriggerAfterfire(
-    double throttle,
-    double rpm,
-    int globalEventsInDecel)
-{
-    if (!m_afterfireEnabled) return false;
+// Stage 1 — raw fuel delivery and scavenging.
+//
+// A pop needs RAW, never-burned fuel in the pipe. That is NOT the same thing as
+// the runner's p_fuel: measured on this engine, the runner's fuel fraction is
+// 0.019 at wide-open throttle and only 0.0026 late in a coast, because ordinary
+// combustion always leaves some fuel in the products. Keying off p_fuel would
+// therefore fire hardest under power, which is precisely the wrong answer.
+//
+// What actually distinguishes overrun is MANIFOLD VACUUM. With the throttle
+// shut the cylinder cannot fill: the trapped charge is mostly leftover exhaust
+// gas, dilution passes the point where a flame will propagate, the cycle
+// misfires, and its fuel is pumped into the exhaust unburned. Measured MAP on
+// this engine separates the regimes cleanly and by a wide margin:
+//
+//     wide-open throttle   98 kPa
+//     part throttle        52 kPa
+//     idle                 53 kPa
+//     OVERRUN           25-29 kPa
+//
+// so a threshold at ~40 kPa selects overrun and nothing else. Note idle sits
+// with part throttle, not with overrun — an idling engine must not pop, and a
+// vacuum test gets that right for free.
+//
+// Fuel is credited once per exhaust event (an edge, not every step), and is
+// then eaten away by exhaust flow scavenging the pipe. Both processes are
+// per-chamber and cycle-resolved, which is where the irregular spacing of real
+// crackle comes from — no rand(), no interval timer.
+void CombustionChamber::updateRawExhaustFuel(double dt) {
+    const Intake *intake = m_head->getIntake(m_piston->getCylinderIndex());
+    const double manifoldPressure = intake->m_system.pressure();
 
-    // Throttle not cut: pedal applied, not an overrun. Reset the per-chamber
-    // decel window so a later cut starts a fresh window.
-    if (throttle > m_afterfireParameters.throttleCutoff) {
-        m_afterfireInDecel = false;
-        m_afterfireDecelElapsedMs = 0.0;
-        m_afterfireDiagnostics.eventsInCurrentDecel = 0;
-        ++m_afterfireDiagnostics.skippedThrottle;
-        return false;
+    m_afterfireDiagnostics.minManifoldPressure =
+        (m_afterfireDiagnostics.minManifoldPressure == 0.0)
+            ? manifoldPressure
+            : std::min(m_afterfireDiagnostics.minManifoldPressure, manifoldPressure);
+
+    // Raw fuel is carried out with the gas, so it is credited for as long as
+    // the cylinder is emptying — not once on an edge. (Crediting a single
+    // step's worth per cycle while scavenging ran every step starved the pipe
+    // by ~2 orders of magnitude: measured rawFuelFraction 8e-06 against a 5e-04
+    // threshold.) The amount is the flow times the fuel fraction ACTUALLY still
+    // unburned in the cylinder, so a cycle that burned cleanly contributes
+    // almost nothing and no separate "intensity" term is needed.
+    const double exhaustFlow = m_exhaustFlow;
+    const bool exhaustOpen = exhaustFlow > 0.0;
+    if (exhaustOpen && manifoldPressure < m_afterfireParameters.misfireManifoldPressure) {
+        const double n_rawFuel = exhaustFlow * m_system.mix().p_fuel;
+        if (n_rawFuel > 0.0) {
+            m_afterfireRawFuel_n += n_rawFuel;
+            // Count the CYCLE, not the step: only the opening edge is a new
+            // misfire event, so this stays a meaningful per-cycle tally.
+            if (!m_afterfireExhaustOpen) ++m_afterfireDiagnostics.misfireCycles;
+        }
+    }
+    m_afterfireExhaustOpen = exhaustOpen;
+
+    // Scavenging: exhaust throughput replaces the pipe's contents, carrying the
+    // raw fuel away with it. This is what stops fuel accumulating indefinitely,
+    // and (via the progress reset below) what makes a well-scavenged pipe under
+    // power incapable of popping however hot it gets.
+    const double n_runner = m_exhaustRunnerAndPrimary.n();
+    if (n_runner > 0.0 && exhaustFlow > 0.0) {
+        const double sweptFraction = clamp(exhaustFlow / n_runner, 0.0, 1.0);
+        m_afterfireRawFuel_n *= (1.0 - sweptFraction);
     }
 
-    // Below the auto-ignition RPM floor the exhaust cannot light off.
-    if (rpm < m_afterfireParameters.rpmMin) {
-        ++m_afterfireDiagnostics.skippedLowRpm;
-        return false;
-    }
-
-    // Sustained-decel window: open it when we enter overrun or RPM rises again
-    // (a genuine deceleration must be a falling-RPM trend, not per-step noise).
-    const double rpmDelta = m_afterfireLastRpm - rpm;
-    if (!m_afterfireInDecel || rpmDelta > 5.0) {
-        m_afterfireInDecel = true;
-        m_afterfireDecelElapsedMs = 0.0;
-        m_afterfireDiagnostics.eventsInCurrentDecel = 0;
-    }
-    m_afterfireLastRpm = rpm;
-
-    if (m_afterfireInDecel && rpmDelta < -2.0 && m_afterfireDecelElapsedMs > 0) {
-        // RPM rising again: close the decel window.
-        m_afterfireInDecel = false;
-        m_afterfireDecelElapsedMs = 0.0;
-        m_afterfireDiagnostics.eventsInCurrentDecel = 0;
-    }
-
-    if (m_afterfireDecelElapsedMs > m_afterfireParameters.decelWindowMs) {
-        ++m_afterfireDiagnostics.skippedMaxEvents;
-        return false;
-    }
-    if (m_afterfireDecelElapsedMs < 0.0) {
-        ++m_afterfireDiagnostics.skippedNoOverrun;
-        return false;
-    }
-
-    // Global (cross-chamber) cap for this decel.
-    if (globalEventsInDecel >= m_afterfireParameters.maxEventsPerDecel) {
-        ++m_afterfireDiagnostics.skippedMaxEvents;
-        return false;
-    }
-
-    // Per-chamber simulation-time cooldown.
-    if (m_afterfireCooldownRemainingMs > 0.0) {
-        ++m_afterfireDiagnostics.skippedCooldown;
-        return false;
-    }
-
-    // Probability gate (deterministic when probability == 1.0).
-    const double p = clamp(m_afterfireParameters.probability, 0.0, 1.0);
-    if (p < 1.0 && (static_cast<double>(rand()) / static_cast<double>(RAND_MAX)) > p) {
-        ++m_afterfireDiagnostics.skippedProbability;
-        return false;
-    }
-
-    return true;
+    (void)dt;
 }
 
-// Bookkeeping records a fired pop and arms the per-chamber cooldown/pulse.
-void CombustionChamber::recordAfterfireEvent(
-    double throttle,
-    double rpm,
-    double peakPressure,
-    double energyReleased)
-{
-    m_lastAfterfirePeakPressure = peakPressure;
-    m_lastAfterfireEnergyReleased = energyReleased;
-    m_afterfireDiagnostics.lastEventRpm = rpm;
-    m_afterfireDiagnostics.lastEventThrottle = throttle;
-    m_afterfireDiagnostics.lastEventPeakPressure = peakPressure;
-    m_afterfireDiagnostics.lastEventEnergyReleased = energyReleased;
-    m_afterfireDiagnostics.eventsInCurrentDecel = 1;
-    m_afterfireCooldownRemainingMs = m_afterfireParameters.cooldownMs;
-    m_afterfirePulseRemainingMs = m_afterfirePulseDurationMs;
-    ++m_afterfireEventCount;
-}
-
-bool CombustionChamber::tickAfterfire(double throttle, double rpm, int globalEventsInDecel) {
-    if (!shouldTriggerAfterfire(throttle, rpm, globalEventsInDecel)) return false;
-    // Only count when a pop is actually generated — triggerAfterfire can still
-    // abort on gating, and counting those aborts would inflate the global cap.
-    return triggerAfterfire(m_afterfireParameters.intensity, throttle, rpm);
-}
-
-void CombustionChamber::triggerAfterfire(double intensity) {
-    const double throttle = (m_engine != nullptr)
-        ? m_engine->getThrottle()
+// Induction time tau(T) for the runner's current state, in seconds.
+//
+// Returns infinity — "will never light" — when a physical precondition for
+// reaction is absent, so the caller's integral simply makes no progress rather
+// than needing a parallel set of boolean gates. Each refusal is counted under
+// the reason that caused it, because "no pops" is otherwise undiagnosable.
+double CombustionChamber::afterfireIgnitionDelay() {
+    const double n_runner = m_exhaustRunnerAndPrimary.n();
+    const double rawFuelFraction = (n_runner > 0.0)
+        ? m_afterfireRawFuel_n / n_runner
         : 0.0;
+    const double T = m_exhaustRunnerAndPrimary.temperature();
+
+    m_afterfireDiagnostics.maxRawFuelFraction =
+        std::max(m_afterfireDiagnostics.maxRawFuelFraction, rawFuelFraction);
+
+    double delay = std::numeric_limits<double>::infinity();
+    if (rawFuelFraction < m_afterfireParameters.minRawFuelFraction) {
+        ++m_afterfireDiagnostics.skippedNoFuel;
+    }
+    else if (m_exhaustRunnerAndPrimary.mix().p_o2 < m_afterfireParameters.minOxygenMoleFraction) {
+        ++m_afterfireDiagnostics.skippedNoOxygen;
+    }
+    else if (T < m_afterfireParameters.autoIgnitionTempK) {
+        ++m_afterfireDiagnostics.skippedTooCold;
+    }
+    else {
+        // tau(T) = tau_ref * exp(Ta * (1/T - 1/T_ref)).
+        // Above T_ref the exponent is negative and the delay shrinks; below it
+        // the delay grows without any extra clamping.
+        const double exponent = m_afterfireParameters.activationTempK
+            * (1.0 / T - 1.0 / m_afterfireParameters.refTempK);
+        delay = m_afterfireParameters.ignitionDelayRefS * std::exp(exponent);
+    }
+
+    return delay;
+}
+
+// Stage 2 — advance the induction integral and light off if it completes.
+//
+// Progress belongs to the raw fuel currently resident in the runner, so it is
+// discarded the moment that fuel stops being able to react — swept out by
+// scavenging, starved of oxygen, or sitting in a pipe that has fallen below the
+// auto-ignition temperature. That reset is the mechanism that prevents a hot,
+// hard-working engine from slowly accumulating its way to a pop.
+bool CombustionChamber::updateAfterfire(double dt, double throttle) {
+    bool fired = false;
+
+    if (m_afterfireEnabled) {
+        // Throttle GATE. `throttle` is the pedal (Engine::getSpeedControl):
+        // 1 = wide open, 0 = shut. The manifold-vacuum test alone cannot
+        // discriminate steady part-throttle (MAP ~52 kPa) from overrun (MAP
+        // ~25 kPa) on this engine, because part-throttle MAP sits between idle
+        // and overrun and a low MAP also occurs at light steady cruise. With the
+        // pedal above the cutoff the driver is ON THE GAS, so whatever low MAP
+        // exists is a fueling/load condition, NOT overrun — and the runner is
+        // being scavenged hard every exhaust stroke, so it cannot pop anyway.
+        // Refusing here is purely physical: no pedal => no overrun => no pop.
+        // (Measured: 10% pedal @ 52 kPa MAP previously fired; that is partial
+        // throttle, not overrun, so it must be gated out.)
+        if (throttle >= m_afterfireParameters.throttleCutoff) {
+            ++m_afterfireDiagnostics.skippedThrottle;
+            return false;
+        }
+
+        updateRawExhaustFuel(dt);
+
+        const double runnerTempK = m_exhaustRunnerAndPrimary.temperature();
+        m_afterfireDiagnostics.maxRunnerTempK =
+            std::max(m_afterfireDiagnostics.maxRunnerTempK, runnerTempK);
+
+        const double delay = afterfireIgnitionDelay();
+        if (std::isinf(delay)) {
+            m_afterfireIgnitionProgress = 0.0;
+        }
+        else {
+            m_afterfireIgnitionProgress += dt / delay;
+            m_afterfireDiagnostics.maxIgnitionProgress =
+                std::max(m_afterfireDiagnostics.maxIgnitionProgress, m_afterfireIgnitionProgress);
+
+            if (m_afterfireIgnitionProgress >= 1.0) {
+                m_afterfireIgnitionProgress = 0.0;
+                fired = igniteExhaustCharge(runnerTempK);
+            }
+            else {
+                ++m_afterfireDiagnostics.skippedNotReady;
+            }
+        }
+    }
+
+    return fired;
+}
+
+// Burn the raw fuel pocket and release its chemical energy into the runner.
+//
+// The pressure spike is a CONSEQUENCE of the combustion, not a hand-authored
+// waveform: react() consumes fuel against the oxygen actually present and
+// returns the moles burned, and that quantity times the fuel's own energy
+// density is the heat added. A lean pocket therefore makes a weak pop and a
+// rich one a loud crack, with no separate intensity schedule.
+bool CombustionChamber::igniteExhaustCharge(double runnerTempK) {
+    bool fired = false;
+
+    const double n_runner = m_exhaustRunnerAndPrimary.n();
+    if (m_afterfireRawFuel_n > 0.0 && n_runner > 0.0) {
+        const double pressureBefore = m_exhaustRunnerAndPrimary.pressure();
+
+        // Present the reaction with the raw fuel as fuel and the runner's own
+        // oxygen as oxidiser, so an O2-starved pipe self-limits.
+        GasSystem::Mix chargeMix;
+        chargeMix.p_fuel = clamp(m_afterfireRawFuel_n / n_runner, 0.0, 1.0);
+        chargeMix.p_o2 = m_exhaustRunnerAndPrimary.mix().p_o2;
+        chargeMix.p_inert = clamp(1.0 - chargeMix.p_fuel - chargeMix.p_o2, 0.0, 1.0);
+
+        const double n_fuelBurned = m_exhaustRunnerAndPrimary.react(n_runner, chargeMix);
+        if (n_fuelBurned > 0.0) {
+            const double energyReleased =
+                n_fuelBurned * m_fuel->getMolecularMass() * m_fuel->getEnergyDensity()
+                * m_afterfireParameters.energyScale;
+            m_exhaustRunnerAndPrimary.changeEnergy(energyReleased);
+
+            // The fuel that burned is gone from the pipe.
+            m_afterfireRawFuel_n = std::max(0.0, m_afterfireRawFuel_n - n_fuelBurned);
+
+            const double pressureAfter = m_exhaustRunnerAndPrimary.pressure();
+            recordAfterfireEvent(pressureAfter, energyReleased, runnerTempK);
+
+            if (m_afterfireParameters.diagnostics) {
+                const double rpm = (m_engine != nullptr)
+                    ? m_engine->getSpeed() * 60.0 / (2.0 * constants::pi)
+                    : 0.0;
+                printf("[AFTERFIRE] pop: rpm=%.0f runnerT=%.0fK dP=%.0fPa energy=%.2fJ nFuel=%.3e\n",
+                    rpm, runnerTempK, pressureAfter - pressureBefore, energyReleased, n_fuelBurned);
+                fflush(stdout);
+            }
+
+            // Choose which custom pop sample to inject this time. With a single
+            // file the choice is fixed; with a glob the bank does not fire the
+            // same sample every time, which keeps a multi-cylinder overrun from
+            // sounding like one looped clip. The chosen samples are exposed to the
+            // simulator, which owns the audio path and MIXES the pop onto the
+            // exhaust channel's output (the chamber has no access to the
+            // synthesizer — SRP: the simulator drives audio). The pop is summed
+            // into the channel's audio alongside the engine's continuing exhaust
+            // sound, so the engine note is never interrupted.
+            if (!m_afterfireWavSamples.empty()) {
+                static thread_local std::mt19937 rng(std::random_device{}());
+                std::uniform_int_distribution<int> dist(0, static_cast<int>(m_afterfireWavSamples.size()) - 1);
+                m_afterfireWavChosen = dist(rng);
+                m_afterfireWavChosenCount = m_afterfireWavSamples[m_afterfireWavChosen].size();
+            }
+            else {
+                m_afterfireWavChosen = -1;
+                m_afterfireWavChosenCount = 0;
+            }
+
+            fired = true;
+        }
+    }
+
+    return fired;
+}
+
+bool CombustionChamber::hasAfterfireWavChoice() const {
+    return m_afterfireWavChosen >= 0
+        && static_cast<size_t>(m_afterfireWavChosen) < m_afterfireWavSamples.size();
+}
+
+const int16_t* CombustionChamber::afterfireWavChoice(size_t& outCount) const {
+    if (!hasAfterfireWavChoice()) {
+        outCount = 0;
+        return nullptr;
+    }
+    outCount = m_afterfireWavChosenCount;
+    return m_afterfireWavSamples[m_afterfireWavChosen].data();
+}
+
+int CombustionChamber::afterfireWavChoiceSampleRate() const {
+    if (!hasAfterfireWavChoice()) {
+        return 44100;  // synthesizer audio rate: resampling becomes a no-op
+    }
+    return m_afterfireWavSampleRates[m_afterfireWavChosen];
+}
+
+void CombustionChamber::recordAfterfireEvent(
+    double peakPressure,
+    double energyReleased,
+    double runnerTempK)
+{
     const double rpm = (m_engine != nullptr)
         ? m_engine->getSpeed() * 60.0 / (2.0 * constants::pi)
         : 0.0;
 
-    triggerAfterfire(intensity, throttle, rpm);
-}
-
-// Inject a synthetic unburnt-fuel charge into the hot exhaust runner and react
-// it (light-off above auto-ignition), releasing energy as a pressure spike.
-bool CombustionChamber::triggerAfterfire(double intensity, double throttle, double rpm) {
-    if (!shouldTriggerAfterfire(throttle, rpm, 0)) {
-        return false;
-    }
-
-    const double clampedIntensity = clamp(intensity, 0.0, 1.0);
-    const double clampedFuelFraction = clamp(m_afterfireParameters.fuelFraction, 0.0, 0.02);
-
-    // Under closed-throttle overrun the exhaust runner is depleted (n() -> 0),
-    // which would skip the pop or make it inaudible. Floor the reference mole
-    // count so the effect stays consistent — this is a guarded synthetic charge.
-    constexpr double nFloor = 0.01;  // mol
-    const double nReference = std::max(m_exhaustRunnerAndPrimary.n(), nFloor);
-    const double nFuel = nReference * clampedFuelFraction * clampedIntensity;
-    if (nFuel <= 0.0) return false;
-
-    m_exhaustRunnerAndPrimary.injectFuel(nFuel);
-
-    GasSystem::Mix afterfireMix;
-    afterfireMix.p_fuel = 0.08;
-    afterfireMix.p_inert = 0.67;
-    afterfireMix.p_o2 = 0.25;
-
-    m_exhaustRunnerAndPrimary.react(nFuel, afterfireMix);
-
-    const double energyReleased = nFuel * kEnergyPerMolFuel;
-    m_exhaustRunnerAndPrimary.changeEnergy(energyReleased);
-
-    const double postPressure = m_exhaustRunnerAndPrimary.pressure();
-    recordAfterfireEvent(throttle, rpm, postPressure, energyReleased);
-    return true;
+    m_lastAfterfirePeakPressure = peakPressure;
+    m_lastAfterfireEnergyReleased = energyReleased;
+    m_afterfireDiagnostics.lastEventRpm = rpm;
+    m_afterfireDiagnostics.lastEventThrottle = (m_engine != nullptr)
+        ? m_engine->getThrottle()
+        : 0.0;
+    m_afterfireDiagnostics.lastEventPeakPressure = peakPressure;
+    m_afterfireDiagnostics.lastEventEnergyReleased = energyReleased;
+    m_afterfireDiagnostics.lastEventRunnerTempK = runnerTempK;
+    m_afterfirePulseRemainingMs = m_afterfirePulseDurationMs;
+    ++m_afterfireEventCount;
 }
 
 double CombustionChamber::getLastAfterfirePeakPressure() const {
@@ -681,10 +872,9 @@ void CombustionChamber::resetAfterfireDiagnostics() {
     m_lastAfterfirePeakPressure = 0.0;
     m_lastAfterfireEnergyReleased = 0.0;
     m_afterfireEventCount = 0;
-    m_afterfireInDecel = false;
-    m_afterfireLastRpm = 0.0;
-    m_afterfireDecelElapsedMs = 0.0;
-    m_afterfireCooldownRemainingMs = 0.0;
+    m_afterfireIgnitionProgress = 0.0;
+    m_afterfireRawFuel_n = 0.0;
+    m_afterfireExhaustOpen = false;
     m_afterfirePulseRemainingMs = 0.0;
 }
 

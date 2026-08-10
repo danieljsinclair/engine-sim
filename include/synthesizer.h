@@ -3,6 +3,7 @@
 
 #include "convolution_filter.h"
 #include "leveling_filter.h"
+#include "one_shot_sample_mixer.h"
 #include "derivative_filter.h"
 #include "low_pass_filter.h"
 #include "jitter_filter.h"
@@ -64,6 +65,16 @@ class Synthesizer {
             unsigned int samples,
             float volume,
             int index);
+
+        // Start playing a custom afterfire pop on channel `index`. `samples` is a
+        // non-owning view into the chamber's stored pop samples (44100 Hz, mono),
+        // `count` its length, `gain` the linear mix level. The sample is summed
+        // into the channel's rendered audio alongside the engine's continuing
+        // exhaust convolution, so the engine note is never interrupted. A V-engine
+        // shares one channel across cylinders; the per-channel mixer owns its own
+        // play-head, so a second cylinder firing simply retriggers the crack.
+        void triggerPop(int index, const int16_t *samples, size_t count, float gain);
+
         void startAudioRenderingThread();
         void endAudioRenderingThread();
         void destroy();
@@ -96,6 +107,10 @@ class Synthesizer {
         bool hasAnyChannelData() const;
         bool hasAllChannelsData() const;
 
+        ProcessingFilters* getFilter(int index) {
+            return index >= 0 && index < m_inputChannelCount ? &m_filters[index] : nullptr;
+        }
+
     public:
         ButterworthLowPassFilter<float> m_antialiasing;
         LevelingFilter m_levelingFilter;
@@ -123,6 +138,12 @@ class Synthesizer {
         std::condition_variable m_cv0;
 
         ProcessingFilters *m_filters;
+
+        // One-shot afterfire pop mixers, one per input channel (exhaust system).
+        // Each fires a short custom WAV crack on top of the channel's engine
+        // exhaust sound without touching its convolution impulse response, so the
+        // pop and the engine note are simultaneous rather than mutually exclusive.
+        OneShotSampleMixer *m_popMixers;
 };
 
 #endif /* ATG_ENGINE_SIM_ENGINE_SYNTHESIZER_H */

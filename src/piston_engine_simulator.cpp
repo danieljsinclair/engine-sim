@@ -2,7 +2,9 @@
 
 #include "../include/constants.h"
 #include "../include/units.h"
+#include "../include/utilities.h"
 
+#include <algorithm>
 #include <cmath>
 #include <assert.h>
 
@@ -226,6 +228,20 @@ void PistonEngineSimulator::placeAndInitialize() {
     m_engine->getIgnitionModule()->reset();
 
     m_exhaustFlowStagingBuffer = new double[m_engine->getExhaustSystemCount()];
+
+    // Size the per-channel afterfire pop-mix gain vector so tickAfterfire() can
+    // index it by exhaust channel index. The index used there is
+    // exhaust->getIndex() (which ranges over the exhaust-system count), with a
+    // fallback to the cylinder index when a cylinder has no exhaust system. A
+    // V-engine has more cylinders than exhaust systems, so size to the larger of
+    // the two to keep the fallback index in bounds. Gain starts at a sensible
+    // default pop level; it is applied to the channel's one-shot mixer when a pop
+    // fires (the channel's engine convolution is left untouched, so the engine
+    // note never drops out during a pop).
+    const int channelCount = std::max(
+        m_engine->getExhaustSystemCount(),
+        m_engine->getCylinderCount());
+    m_customAfterfireGain.assign(channelCount, 0.6f);
 }
 
 void PistonEngineSimulator::placeCylinder(int i) {
@@ -315,10 +331,7 @@ void PistonEngineSimulator::simulateStep_() {
     }
 
 #ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
-    if (m_engine != nullptr) {
-        const double rpm = m_engine->getSpeed() * 60.0 / (2.0 * constants::pi);
-        tickAfterfire(timestep, m_engine->getThrottle(), rpm);
-    }
+    tickAfterfire(timestep);
 #endif /* ATG_ENGINE_SIM_AFTERFIRE_SPIKE */
 
     im->resetIgnitionEvents();
@@ -334,64 +347,68 @@ double PistonEngineSimulator::getTotalExhaustFlow() const {
 }
 
 #ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
-// GREEN phase: advance per-chamber timers, track the cross-chamber decel window,
-// apply global inter-pop spacing, then fire at most one eligible chamber per step.
-void PistonEngineSimulator::tickAfterfire(double dt, double throttle, double rpm) {
+// Advance every chamber's exhaust auto-ignition chemistry by one step.
+//
+// Deliberately trivial. The previous implementation lived here because the
+// effect was SCHEDULED — it needed a decel window, a cross-chamber pop spacing
+// timer and an event cap to stop a rate-limited "knock" from firing every
+// interval. None of that survives: whether a runner pops is decided by that
+// runner's own temperature, mixture and residence time, which are per-chamber
+// quantities the chamber already owns. The simulator's only remaining job is to
+// tick the chemistry after the fluid substeps have refreshed those quantities.
+//
+// Note there is no throttle argument any more. The old gate had to be told the
+// pedal position (and got its polarity wrong, firing pops under acceleration),
+// but overrun now selects itself: a shut throttle collapses exhaust flow, the
+// charge lingers in a still-hot pipe, and the induction integral completes.
+void PistonEngineSimulator::tickAfterfire(double dt) {
     const int cylinderCount = (m_engine != nullptr)
         ? m_engine->getCylinderCount()
         : 0;
-    if (cylinderCount <= 0) return;
 
-    // Tick per-chamber cooldowns and audible pulse windows (simulation-time).
+    // Pedal (speed control): 1 = wide open, 0 = shut. Read once per step and
+    // handed to every chamber so each can apply its own overrun gate against the
+    // same pedal value. This is the PHYSICAL pedal, not a plate-restriction
+    // value, so the gate is simply "pedal > cutoff => not overrun => no pop".
+    const double throttle = (m_engine != nullptr)
+        ? m_engine->getSpeedControl()
+        : 0.0;
+
     const double dtMs = dt * 1000.0;
     for (int i = 0; i < cylinderCount; ++i) {
         CombustionChamber *chamber = m_engine->getChamber(i);
-        chamber->tickAfterfireCooldown(dtMs);
         chamber->tickAfterfirePulse(dtMs);
-    }
+        const bool fired = chamber->updateAfterfire(dt, throttle);
 
-    const double throttleCutoff = (m_engine->getChamber(0) != nullptr)
-        ? m_engine->getChamber(0)->getAfterfireParameters().throttleCutoff
-        : 0.0;
+        Piston *piston = m_engine->getPiston(i);
+        CylinderHead *head = m_engine->getHead(piston->getCylinderBank()->getIndex());
+        ExhaustSystem *exhaust =
+            head->getExhaustSystem(piston->getCylinderIndex());
+        const int channelIndex = (exhaust != nullptr)
+            ? exhaust->getIndex()
+            : i;
 
-    // Throttle applied: reset global decel tracking.
-    if (throttle > throttleCutoff) {
-        if (m_afterfireGlobalInDecel) {
-            m_afterfireGlobalInDecel = false;
-            m_afterfireGlobalDecelElapsedMs = 0.0;
-            m_afterfireGlobalEventsInDecel = 0;
-        }
-        return;
-    }
-
-    const bool rpmFalling = rpm < m_afterfireGlobalLastRpm - 20.0;
-    if (!m_afterfireGlobalInDecel || rpmFalling) {
-        m_afterfireGlobalInDecel = true;
-        m_afterfireGlobalDecelElapsedMs = 0.0;
-        m_afterfireGlobalEventsInDecel = 0;
-    }
-    m_afterfireGlobalLastRpm = rpm;
-    m_afterfireGlobalDecelElapsedMs += dtMs;
-
-    // Global inter-pop spacing: refuse to fire until enough sim-time has passed
-    // since the last pop. This spreads a startup burst into a sequence of cracks.
-    m_afterfireGlobalPopCooldownMs =
-        std::max(0.0, m_afterfireGlobalPopCooldownMs - dtMs);
-    const double globalPopIntervalMs = (m_engine->getChamber(0) != nullptr)
-        ? m_engine->getChamber(0)->getAfterfireParameters().globalPopIntervalMs
-        : 0.0;
-    if (globalPopIntervalMs > 0.0 && m_afterfireGlobalPopCooldownMs > 0.0) {
-        return;
-    }
-
-    // At most one afterfire event per step across all chambers: fire the first
-    // eligible chamber to keep the sequence sparse.
-    for (int i = 0; i < cylinderCount; ++i) {
-        CombustionChamber *chamber = m_engine->getChamber(i);
-        if (chamber->tickAfterfire(throttle, rpm, m_afterfireGlobalEventsInDecel)) {
-            ++m_afterfireGlobalEventsInDecel;
-            m_afterfireGlobalPopCooldownMs = globalPopIntervalMs;
-            break;
+        // A pop that carries a custom WAV MIXES it onto the exhaust channel's
+        // audio output, on top of the engine's continuing exhaust sound - it does
+        // NOT swap the channel's convolution impulse response. Sending the pop
+        // through triggerPop() keeps the engine's own exhaust IR untouched for the
+        // whole pop, so the engine note is never interrupted (the previous IR-swap
+        // design replaced the IR during the pop and the engine sound dropped out).
+        //
+        // The chamber owns the pop sample (and its sample rate); the simulator
+        // owns the audio path (SRP), so the trigger call belongs here. A V-engine
+        // shares one exhaust channel across cylinders: the channel's
+        // OneShotSampleMixer owns its own play-head, so a second cylinder firing
+        // on the same channel simply retriggers the crack from its leading edge
+        // rather than corrupting the first - correct for overrun crackle.
+        if (fired && chamber->hasAfterfireWavChoice()) {
+            size_t sampleCount = 0;
+            const int16_t* samples = chamber->afterfireWavChoice(sampleCount);
+            if (samples != nullptr && sampleCount > 0) {
+                synthesizer().triggerPop(
+                    channelIndex, samples, sampleCount,
+                    m_customAfterfireGain[channelIndex]);
+            }
         }
     }
 }

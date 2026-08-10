@@ -92,6 +92,7 @@ add_library(engine-sim STATIC
     src/jitter_filter.cpp
     src/leveling_filter.cpp
     src/low_pass_filter.cpp
+    src/one_shot_sample_mixer.cpp
     src/part.cpp
     src/piston.cpp
     src/piston_engine_simulator.cpp
@@ -102,6 +103,7 @@ add_library(engine-sim STATIC
     src/throttle.cpp
     src/transmission.cpp
     src/utilities.cpp
+    src/wav_loader.cpp
     src/valvetrain.cpp
     src/vehicle.cpp
     src/vehicle_drag_constraint.cpp
@@ -137,6 +139,7 @@ add_library(engine-sim STATIC
     include/jitter_filter.h
     include/leveling_filter.h
     include/low_pass_filter.h
+    include/one_shot_sample_mixer.h
     include/part.h
     include/piston.h
     include/piston_engine_simulator.h
@@ -431,6 +434,7 @@ add_executable(engine-sim-test
     test/gas_system_tests.cpp
     test/function_test.cpp
     test/synthesizer_tests.cpp
+    test/afterfire_tests.cpp
 )
 
 if(NOT MSVC)
