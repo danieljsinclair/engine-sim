@@ -42,13 +42,17 @@ class TorqueConverter : public atg_scs::Constraint {
             double StallTorqueRatio = 2.0;
             // Capacity coefficient K in T_max = K * N_impeller^2, Nm per RPM^2.
             double CapacityFactor = 1.8e-5;
-            // Impeller speed at or above which the lockup clutch may engage, RPM.
+            // Turbine (output/road) speed at or above which the lockup clutch
+            // may engage, RPM. Keyed on the TURBINE, not the impeller: the
+            // turbine is the exogenous side, so the lock state cannot feed
+            // back through the engine's torque balance (see updateLockup()).
             double LockupRpm = 1500.0;
             // Hard ceiling on transmitted impeller torque, Nm.
             double MaxInputTorque = 1250.0;
             // Speed ratio at or above which lockup may engage (near coupling).
             double LockupSpeedRatio = 0.85;
-            // Release band below LockupRpm, RPM. Prevents lockup chatter.
+            // Release band below LockupRpm (turbine side), RPM. Prevents
+            // lockup chatter.
             double LockupHysteresisRpm = 150.0;
             // Time over which the lockup clutch's rated torque ramps between the
             // fluid figure (K * N^2) and the locked ceiling (MaxInputTorque),

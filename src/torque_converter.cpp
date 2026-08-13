@@ -145,10 +145,19 @@ void TorqueConverter::advanceLockupBlend(double dt) {
 }
 
 void TorqueConverter::updateLockup() {
-    // Hysteretic lockup: engage only when the impeller is spinning fast enough
-    // AND the converter is already near coupling; release on either the RPM
-    // floor minus the hysteresis band, or a clear drop in speed ratio. Without
-    // the two-sided band the clutch chatters on and off every solver step.
+    // Hysteretic lockup, keyed on the TURBINE (output/road) speed — NOT the
+    // impeller. The turbine is the exogenous side (road-pinned in the twin, or
+    // the drivetrain mass otherwise); the impeller is the side whose speed is
+    // SET by this constraint's torque balance. An impeller-fed lock state
+    // feeds back: at cruise the engine hunts across the engage/release floor
+    // (release collapses the capacity to the pump law, the engine flares up,
+    // lockup re-engages and yanks it back down) — a self-sustained limit
+    // cycle. Keying the state on the turbine breaks that loop by construction
+    // and matches the road-side lockup authority the twin's governor already
+    // assumes: one owner (the road) for both the pressure ramp and the lock
+    // decision. Release on either the turbine RPM floor minus the hysteresis
+    // band, or a clear drop in speed ratio. Without the two-sided band the
+    // clutch chatters on and off every solver step.
     const double speedRatio = getSpeedRatio();
 
     bool engaged = false;
@@ -157,14 +166,14 @@ void TorqueConverter::updateLockup() {
     }
     else if (m_lockupEngaged) {
         const bool rpmReleased =
-            m_inputRpm < (m_lockupRpm - m_lockupHysteresisRpm);
+            m_outputRpm < (m_lockupRpm - m_lockupHysteresisRpm);
         const bool slipReleased =
             speedRatio < (m_lockupSpeedRatio - LockupReleaseSpeedRatioBand);
         engaged = !(rpmReleased || slipReleased);
     }
     else {
         engaged =
-            m_inputRpm >= m_lockupRpm
+            m_outputRpm >= m_lockupRpm
             && speedRatio >= m_lockupSpeedRatio;
     }
 
