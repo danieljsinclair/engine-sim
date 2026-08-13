@@ -235,6 +235,22 @@ void Simulator::simulateStep_() {
 }
 
 void Simulator::updateFilteredEngineSpeed(double dt) {
-    const double alpha = dt / (100 + dt);
-    m_filteredEngineSpeed = alpha * m_filteredEngineSpeed + (1 - alpha) * m_engine->getRpm();
+    // First-order low-pass on engine rpm, tau in SECONDS. This models the
+    // realistic tachometer/ECU sensor every real vehicle broadcasts: crank
+    // ripple (combustion firing at 30-60+ Hz) is out-of-band for a tach and
+    // is filtered before display/broadcast. The previous form,
+    // alpha = dt / (100 + dt), was written for dt in MILLISECONDS but
+    // receives SECONDS, making alpha ~2e-4 — effectively no filtering.
+    // alpha = dt / (tau + dt) is the exact discrete equivalent of the
+    // continuous first-order filter for a zero-order-held sample.
+    constexpr double kEngineSpeedFilterTauS = 0.1;
+    const double rpm = m_engine->getRpm();
+    if (m_filteredEngineSpeed == 0.0 && rpm > 0.0) {
+        // Seed with the first sample so the filter does not ramp from 0
+        // through the cranking spin-up (a sensor reads instantly on power-up).
+        m_filteredEngineSpeed = rpm;
+        return;
+    }
+    const double alpha = dt / (kEngineSpeedFilterTauS + dt);
+    m_filteredEngineSpeed += alpha * (rpm - m_filteredEngineSpeed);
 }
