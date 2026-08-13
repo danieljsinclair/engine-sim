@@ -18,6 +18,11 @@ Simulator::Simulator() {
     m_filteredEngineSpeed = 0.0;
     m_dynoTorqueSamples = nullptr;
     m_lastDynoTorqueSample = 0;
+
+    m_frameExhaustVolume = 0.0;
+    m_frameCouplingTorqueSum = 0.0;
+    m_frameTurbineTorqueSum = 0.0;
+    m_frameStepsTaken = 0;
 }
 
 Simulator::~Simulator() {
@@ -92,6 +97,14 @@ void Simulator::startFrame(double dt) {
         for (int i = 0; i < m_engine->getIntakeCount(); ++i) {
             m_engine->getIntake(i)->m_flowRate = 0;
         }
+
+        // Reset the frame-integration accumulators ONLY when this frame will
+        // actually step: a zero-step frame (the latency governor can produce
+        // one) keeps the previous frame's means instead of reading as zero.
+        m_frameExhaustVolume = 0.0;
+        m_frameCouplingTorqueSum = 0.0;
+        m_frameTurbineTorqueSum = 0.0;
+        m_frameStepsTaken = 0;
     }
 }
 
@@ -149,6 +162,30 @@ bool Simulator::simulateStep() {
 
     simulateStep_();
 
+    // Frame-integration for the display readouts (see the header). F_t was
+    // repopulated by m_system->process() above and the chamber exhaust
+    // accumulator by this step's engine update; grab both NOW, before the
+    // next step overwrites them, so the frame getters can present means
+    // instead of an aliased last-substep sample.
+    m_frameExhaustVolume += getTotalExhaustFlow();
+    if (m_transmission != nullptr) {
+        if (m_transmission->hasTorqueConverter()) {
+            const auto *converter = m_transmission->getTorqueConverter();
+            // Row 0: J = [0 0 -1 | 0 0 TR] — column 0 is the impeller
+            // (engine) side, column 1 the turbine side. Sign conventions
+            // mirror the bridge readout: engine producing power positive,
+            // turbine torque negated so "driving the wheels" is positive.
+            m_frameCouplingTorqueSum += converter->F_t[0][0];
+            m_frameTurbineTorqueSum += -converter->F_t[0][1];
+        }
+        else {
+            const auto &clutch = m_transmission->getClutchConstraint();
+            m_frameCouplingTorqueSum += clutch.F_t[0][0];
+            m_frameTurbineTorqueSum += -clutch.F_t[0][1];
+        }
+    }
+    ++m_frameStepsTaken;
+
     writeToSynthesizer();
 
     ++m_currentIteration;
@@ -157,6 +194,28 @@ bool Simulator::simulateStep() {
 
 double Simulator::getTotalExhaustFlow() const {
     return 0.0;
+}
+
+double Simulator::getFrameExhaustFlowRate() const {
+    if (m_frameStepsTaken == 0) return 0.0;
+
+    // True volumetric rate: the frame's total exhaust volume over the frame's
+    // actual simulated duration (steps x substep dt), NOT the substep dt —
+    // the chambers accumulate volume per solver step, so dividing by the
+    // substep timestep alone would overstate the rate by the step count.
+    return m_frameExhaustVolume / (m_frameStepsTaken * getTimestep());
+}
+
+double Simulator::getFrameCouplingTorque() const {
+    return (m_frameStepsTaken > 0)
+        ? m_frameCouplingTorqueSum / m_frameStepsTaken
+        : 0.0;
+}
+
+double Simulator::getFrameTurbineTorque() const {
+    return (m_frameStepsTaken > 0)
+        ? m_frameTurbineTorqueSum / m_frameStepsTaken
+        : 0.0;
 }
 
 int Simulator::readAudioOutput(int samples, int16_t *target) {

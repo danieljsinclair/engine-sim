@@ -39,6 +39,18 @@ public:
     virtual void startFrame(double dt);
     bool simulateStep();
     virtual double getTotalExhaustFlow() const;
+
+    // Frame-integrated display readouts. The solver runs at the simulation
+    // frequency (10 kHz) INSIDE one frame; quantities that are physically
+    // per-substep (constraint reaction forces, chamber exhaust volume) alias
+    // badly when sampled once per frame — the last substep's value flickers
+    // with the firing ripple. These expose the MEAN over every step of the
+    // most recent frame that actually stepped (a zero-step frame keeps the
+    // previous frame's means; the latency governor can skip steps).
+    double getFrameExhaustFlowRate() const;   // m^3/s, true mean rate
+    double getFrameCouplingTorque() const;    // Nm, engine-side coupling mean
+    double getFrameTurbineTorque() const;     // Nm, turbine-side coupling mean
+
     int readAudioOutput(int samples, int16_t *target);
     virtual void endFrame();
     virtual void destroy();
@@ -125,6 +137,12 @@ private:
     int m_lastDynoTorqueSample;
 
     double m_filteredEngineSpeed;
+
+    // Frame integration accumulators for the display readouts above.
+    double m_frameExhaustVolume;
+    double m_frameCouplingTorqueSum;
+    double m_frameTurbineTorqueSum;
+    int m_frameStepsTaken;
 
     int m_steps;
 };

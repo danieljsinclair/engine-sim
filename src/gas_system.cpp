@@ -360,7 +360,7 @@ void GasSystem::dissipateVelocity(double dt, double timeConstant) {
     m_state.E_k += dE_k;
 }
 
-double GasSystem::flow(const FlowParameters &params) {
+double GasSystem::flow(const FlowParameters &params, double *volumeMoved) {
     GasSystem *source = nullptr, *sink = nullptr;
     double sourcePressure = 0, sinkPressure = 0;
     double dx, dy;
@@ -517,6 +517,13 @@ double GasSystem::flow(const FlowParameters &params) {
 
     if (source->m_state.E_k < 0) {
         source->m_state.E_k = 0;
+    }
+
+    if (volumeMoved != nullptr) {
+        // Volume the transferred gas occupied at the SOURCE system's
+        // conditions (fractionVolume is that gas's share of the source
+        // volume), signed with the same direction convention as the moles.
+        *volumeMoved = fractionVolume * direction;
     }
 
     return flow * direction;
