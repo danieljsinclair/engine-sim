@@ -44,6 +44,9 @@ TorqueConverter::TorqueConverter() : atg_scs::Constraint(1, 2) {
     m_outputRpm = 0.0;
     m_capacityScale = 0.0;
     m_lockupEngaged = false;
+    m_lockupBlend = 0.0;
+    m_lockupBlendTimeS = 0.25;
+    m_lockupReleaseTimeS = 0.03;
 
     // atg_scs::Constraint's constructor clears m_bodies with
     // `memset(m_bodies, 0, sizeof(int) * MaxBodyCount)` — 8 bytes for what is a
@@ -66,6 +69,8 @@ void TorqueConverter::initialize(const Parameters &params) {
     m_maxInputTorque = std::max(params.MaxInputTorque, 0.0);
     m_lockupSpeedRatio = std::clamp(params.LockupSpeedRatio, 0.0, 1.0);
     m_lockupHysteresisRpm = std::max(params.LockupHysteresisRpm, 0.0);
+    m_lockupBlendTimeS = std::max(params.LockupBlendTimeS, 1e-3);
+    m_lockupReleaseTimeS = std::max(params.LockupReleaseTimeS, 1e-3);
     m_lockupEnabled = params.LockupEnabled;
 
     buildTorqueRatioTable();
@@ -117,6 +122,26 @@ void TorqueConverter::updateRpm(double inputRpm, double outputRpm) {
     m_outputRpm = std::max(outputRpm, 0.0);
 
     updateLockup();
+}
+
+void TorqueConverter::advanceLockupBlend(double dt) {
+    // The apply blend is a pure TIME ramp toward the (hysteretic) lockup state:
+    // it never feeds engine rpm back into the capacity, so it cannot add a
+    // feedback loop — it only bounds how fast the discrete lockup state may
+    // change the converter's torque ceiling. ASYMMETRIC by design: applying is
+    // progressive (LockupBlendTimeS, a real clutch's apply ramp), releasing is
+    // fast (LockupReleaseTimeS — the release fires exactly when the box wants
+    // the fluid back, and lingering rigidity through that transition yanks the
+    // engine to the new road speed in one frame). dt <= 0 leaves the blend
+    // untouched (the owner may call this before the first solve).
+    if (dt <= 0.0) return;
+
+    const double rate = m_lockupEngaged ? (1.0 / m_lockupBlendTimeS)
+                                        : (1.0 / m_lockupReleaseTimeS);
+    const double target = m_lockupEngaged ? 1.0 : 0.0;
+    const double maxStep = dt * rate;
+    const double error = target - m_lockupBlend;
+    m_lockupBlend += std::clamp(error, -maxStep, maxStep);
 }
 
 void TorqueConverter::updateLockup() {
@@ -246,10 +271,16 @@ void TorqueConverter::calculate(Output *output, atg_scs::SystemState *state) {
     output->v_bias[0] = 0.0;
 
     // Capacity window. Locked up, the clutch carries the converter's full rated
-    // ceiling; open, it carries the K * N^2 pump capacity. Either way the
-    // owning Transmission scales it to release the drivetrain during a shift.
+    // ceiling; open, it carries the K * N^2 pump capacity. The lockup APPLY
+    // BLEND interpolates between the two over LockupBlendTimeS: stepping the
+    // ceiling in one frame lets the solver close hundreds of rpm of slip
+    // instantly (a violent one-frame snap), while the ramp makes engagement a
+    // progressive, torque-limited convergence — how a real lockup clutch
+    // applies. Either way the owning Transmission scales the result to release
+    // the drivetrain during a shift.
     const double ratedTorque =
-        m_lockupEngaged ? m_maxInputTorque : getMaxInputTorque();
+        getMaxInputTorque()
+        + (m_maxInputTorque - getMaxInputTorque()) * m_lockupBlend;
     const double capacity = std::max(ratedTorque * m_capacityScale, 0.0);
 
     // Symmetric limits. NOTE for review: a real open converter has markedly

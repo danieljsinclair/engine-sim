@@ -4,7 +4,6 @@
 #include "../include/torque_converter.h"
 
 #include <cmath>
-#include <cstdio>
 
 Transmission::Transmission() {
     m_gear = -1;
@@ -40,14 +39,6 @@ void Transmission::initialize(const Parameters &params) {
 }
 
 void Transmission::update(double dt) {
-    static int dbgFrames = 0;
-    if (dbgFrames < 30) {
-        std::fprintf(stderr, "[TC-DBG] update#%d hasTC=%d gear=%d clutchP=%.3f capScale=%.3f\n",
-                     dbgFrames, (m_torqueConverter != nullptr ? 1 : 0), m_gear,
-                     m_clutchPressure,
-                     (m_torqueConverter != nullptr ? m_torqueConverter->getCapacityScale() : -1.0));
-        ++dbgFrames;
-    }
     if (m_torqueConverter != nullptr) {
         // Fluid-coupling torque converter installed: it is the SOLE coupling
         // path. The friction clutch is held OPEN (zero torque) so it cannot
@@ -62,6 +53,11 @@ void Transmission::update(double dt) {
         m_clutchConstraint.m_minTorque = 0;
         m_clutchConstraint.m_maxTorque = 0;
         m_torqueConverter->setCapacityScale(m_gear == -1 ? 0.0 : m_clutchPressure);
+        // Advance the lockup apply blend with the step's dt. update() runs
+        // after the solver step (see simulator.cpp), so the solver reads the
+        // blend advanced one frame earlier — a fixed one-frame pipeline delay,
+        // not a correctness issue for a 0.25 s ramp.
+        m_torqueConverter->advanceLockupBlend(dt);
     }
     else if (m_gear == -1) {
         m_clutchConstraint.m_minTorque = 0;
@@ -72,10 +68,8 @@ void Transmission::update(double dt) {
         m_clutchConstraint.m_maxTorque = m_maxClutchTorque * m_clutchPressure;
     }
 
-    // NOTE: MATCH-mode driving torque is NOT applied here. update() runs AFTER
-    // m_system->process() each frame (simulator.cpp:110 then :114), so anything
-    // written here would miss the solve. The recorded input torque is applied
-    // by the TransmissionInputTorqueGenerator (a ForceGenerator) during
+    // NOTE: MATCH-mode driving torque is NOT applied here — it is applied by
+    // the TransmissionInputTorqueGenerator (a ForceGenerator) during
     // processForces(), accumulating into SystemState::t[rotatingMass] so the ODE
     // integrates it before the clutch constraint solves — see apply() below.
     (void)dt;

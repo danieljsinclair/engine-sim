@@ -50,6 +50,19 @@ class TorqueConverter : public atg_scs::Constraint {
             double LockupSpeedRatio = 0.85;
             // Release band below LockupRpm, RPM. Prevents lockup chatter.
             double LockupHysteresisRpm = 150.0;
+            // Time over which the lockup clutch's rated torque ramps between the
+            // fluid figure (K * N^2) and the locked ceiling (MaxInputTorque),
+            // seconds. A real lockup clutch APPLIES progressively; stepping the
+            // rated torque in one solver frame yanks a slipping engine to sync
+            // instantly (a several-hundred-rpm one-frame snap).
+            double LockupBlendTimeS = 0.25;
+            // Release-side blend time, seconds. Release must be FAST: the
+            // release fires exactly when the box wants the fluid back (a
+            // downshift, a lug), and holding lockup rigidity through that
+            // transition yanks the engine to the NEW road-implied speed in one
+            // frame. Apply is progressive, release is near-immediate — the
+            // asymmetry a real lockup clutch has.
+            double LockupReleaseTimeS = 0.03;
             // Master enable for the lockup clutch.
             bool LockupEnabled = true;
         };
@@ -68,6 +81,15 @@ class TorqueConverter : public atg_scs::Constraint {
         // the lockup state machine. Called from calculate() and may also be
         // called by the owner for telemetry between solver steps.
         void updateRpm(double inputRpm, double outputRpm);
+
+        // Advance the lockup APPLY BLEND toward the engaged state at the rate
+        // given by LockupBlendTimeS. The blend interpolates the rated torque
+        // between the fluid capacity (K * N^2) and the locked ceiling, so the
+        // lockup clutch applies progressively like real hardware instead of
+        // stepping the capacity in one frame. Called by the owning Transmission
+        // once per simulation step (it carries the dt the constraint interface
+        // does not).
+        void advanceLockupBlend(double dt);
 
         // Telemetry accessors.
         double getTorqueRatio() const;
@@ -109,6 +131,13 @@ class TorqueConverter : public atg_scs::Constraint {
         double m_outputRpm;
         double m_capacityScale;
         bool m_lockupEngaged;
+
+        // 0 = fluid capacity only, 1 = full locked ceiling. Tracks
+        // m_lockupEngaged at the LockupBlendTimeS rate (see
+        // advanceLockupBlend).
+        double m_lockupBlend;
+        double m_lockupBlendTimeS;
+        double m_lockupReleaseTimeS;
 
         // Torque ratio resampled onto a uniform speed-ratio grid.
         static constexpr int TableResolution = 256;
