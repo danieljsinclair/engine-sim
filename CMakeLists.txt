@@ -102,6 +102,7 @@ add_library(engine-sim STATIC
     src/synthesizer.cpp
     src/throttle.cpp
     src/transmission.cpp
+    src/torque_converter.cpp
     src/utilities.cpp
     src/wav_loader.cpp
     src/valvetrain.cpp

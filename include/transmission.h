@@ -4,6 +4,9 @@
 #include "vehicle.h"
 #include "engine.h"
 #include "scs.h"
+#include "torque_converter.h"
+
+#include <memory>
 
 class Transmission;
 
@@ -30,6 +33,13 @@ class Transmission {
             int GearCount;
             const double *GearRatios;
             double MaxClutchTorque;
+            // Optional fluid-coupling torque converter (proper SCS direct-torque
+            // model). When non-null the Transmission adds a TorqueConverter
+            // constraint in parallel with the friction clutch; the friction clutch
+            // keeps its bodies and is only used to open the driveline during a shift.
+            // The converter carries the pump/turbine fluid torque directly (Nm), so
+            // the engine is always loaded by the fluid path — no free-rev, no stall.
+            const TorqueConverter::Parameters *TorqueConverterParams = nullptr;
         };
 
     public:
@@ -68,9 +78,32 @@ class Transmission {
         inline double getGearRatio(int i) const { return m_gearRatios[i]; }
         inline double getMaxClutchTorque() const { return m_maxClutchTorque; }
         inline const atg_scs::ClutchConstraint& getClutchConstraint() const { return m_clutchConstraint; }
+        // Whether the fluid-coupling torque converter is installed. When true the
+        // drivetrain applies torque via the SCS TorqueConverter constraint (the
+        // engine is always loaded by the fluid path), not just the friction clutch.
+        inline bool hasTorqueConverter() const { return m_torqueConverter != nullptr; }
+        inline const TorqueConverter* getTorqueConverter() const { return m_torqueConverter.get(); }
+
+        // Attach the fluid-coupling torque converter to a LIVE (already wired)
+        // transmission. The bridge calls this when --coupling-model torque-converter
+        // is selected after the simulator has loaded the script. Wires the impeller
+        // (engine crankshaft) and turbine (rotating mass) bodies and adds the
+        // constraint to the rigid-body system in parallel with the friction clutch.
+        void attachTorqueConverter(atg_scs::RigidBodySystem *system,
+                                   Engine *engine,
+                                   const TorqueConverter::Parameters &params);
+
+        // Create the torque converter object on an UNWIRED transmission (before
+        // addToSystem runs). addToSystem then wires its bodies and adds the
+        // constraint to the rigid-body system at the safe wiring time. Use this
+        // when the coupling model is chosen before the simulator loads its script;
+        // do NOT add a constraint to an already-initialized system (the SCS solver
+        // pre-sizes its per-constraint buffers at initialize()).
+        void ensureTorqueConverter(const TorqueConverter::Parameters &params);
 
     protected:
         atg_scs::ClutchConstraint m_clutchConstraint;
+        std::unique_ptr<TorqueConverter> m_torqueConverter;
         atg_scs::RigidBody *m_rotatingMass;
         Vehicle *m_vehicle;
 
