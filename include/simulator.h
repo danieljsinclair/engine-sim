@@ -79,6 +79,10 @@ public:
     double getTargetSynthesizerLatency() const { return m_targetSynthesizerLatency; }
     double getSynthesizerInputLatency() const { return m_synthesizer.getLatency(); }
     double getSynthesizerInputLatencyTarget() const;
+    // Output level of the last rendered audio block: post-leveler, pre-volume
+    // RMS in int16 output scale (-1.0 until the first block). See
+    // Synthesizer::getOutputRmsPreVolume.
+    double getSynthesizerOutputRms() const { return m_synthesizer.getOutputRmsPreVolume(); }
 
     void setSimulationSpeed(double simSpeed) { m_simulationSpeed = simSpeed; }
     double getSimulationSpeed() const { return m_simulationSpeed; }

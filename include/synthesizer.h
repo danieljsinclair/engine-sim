@@ -104,6 +104,21 @@ class Synthesizer {
         AudioParameters getAudioParameters();
         void setAudioParameters(const AudioParameters &params);
 
+        // Output level of the most recently rendered audio block: RMS of the
+        // POST-LEVELER, PRE-VOLUME signal (the engine tone the volume knob
+        // then scales), in int16 output scale. This is the honest "what you
+        // would hear at volume 1" quantity — the post-volume tap reads a flat
+        // zero whenever the user volume is 0 (e.g. --silent benches), which
+        // would hide exactly the level collapse this exposes. -1.0 until the
+        // first block has been rendered (honest-absent sentinel).
+        double getOutputRmsPreVolume() const;
+
+    private:
+        void resetOutputRmsAccumulators();
+        void publishOutputRms();
+
+    public:
+
         bool hasAnyChannelData() const;
         bool hasAllChannelsData() const;
 
@@ -133,8 +148,17 @@ class Synthesizer {
         std::atomic<bool> m_run;
         bool m_processed;
 
+        // Per-render-block RMS accumulation (see getOutputRmsPreVolume). The
+        // render paths reset these at block start and publish the finished
+        // block's RMS to m_lastOutputRms under m_lock0; readers only ever
+        // touch m_lastOutputRms.
+        double m_outputRmsSum = 0.0;
+        double m_outputRmsSumSq = 0.0;
+        long long m_outputRmsCount = 0;
+        double m_lastOutputRms = -1.0;
+
         std::mutex m_inputLock;
-        std::mutex m_lock0;
+        mutable std::mutex m_lock0;
         std::condition_variable m_cv0;
 
         ProcessingFilters *m_filters;
