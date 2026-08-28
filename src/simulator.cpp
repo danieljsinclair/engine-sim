@@ -82,14 +82,24 @@ void Simulator::startFrame(double dt) {
     const double timestep = getTimestep();
     m_steps = (int)std::round((dt * m_simulationSpeed) / timestep);
 
-    const double targetLatency = getSynthesizerInputLatencyTarget();
-    if (m_synthesizer.getLatency() < targetLatency) {
-        m_steps = static_cast<int>((m_steps + 1) * 1.1);
-    }
-    else if (m_synthesizer.getLatency() > targetLatency) {
-        m_steps = static_cast<int>((m_steps - 1) * 0.9);
-        if (m_steps < 0) {
-            m_steps = 0;
+    // Latency governor: in free-running real-time audio mode the sim is paced
+    // by the audio device, and the per-frame substep count is nudged to track
+    // the measured synth latency. In PACED REPLAY mode (deterministic / live /
+    // replay telemetry with a warm-start prefix) the loop thread owns the core
+    // at a FIXED timestep, so this nudge must be disabled — it reads a
+    // timing-dependent buffer size and would make m_steps (and thus the whole
+    // run) nondeterministic, tipping the warm-start into the reversion
+    // (negative-exhaust-flow) attractor. See ISimulatorConfig::pacedReplay.
+    if (!m_pacedReplay) {
+        const double targetLatency = getSynthesizerInputLatencyTarget();
+        if (m_synthesizer.getLatency() < targetLatency) {
+            m_steps = static_cast<int>((m_steps + 1) * 1.1);
+        }
+        else if (m_synthesizer.getLatency() > targetLatency) {
+            m_steps = static_cast<int>((m_steps - 1) * 0.9);
+            if (m_steps < 0) {
+                m_steps = 0;
+            }
         }
     }
 

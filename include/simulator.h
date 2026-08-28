@@ -77,6 +77,8 @@ public:
 
     void setTargetSynthesizerLatency(double latency) { m_targetSynthesizerLatency = latency; }
     double getTargetSynthesizerLatency() const { return m_targetSynthesizerLatency; }
+    void setPacedReplay(bool paced) { m_pacedReplay = paced; }
+    bool isPacedReplay() const { return m_pacedReplay; }
     double getSynthesizerInputLatency() const { return m_synthesizer.getLatency(); }
     double getSynthesizerInputLatencyTarget() const;
     // Output level of the last rendered audio block: post-leveler, pre-volume
@@ -136,6 +138,9 @@ private:
 
     double m_targetSynthesizerLatency;
     double m_simulationSpeed;
+    // Paced-replay mode: when set, the audio-latency governor in startFrame is
+    // disabled so the per-frame substep count is deterministic (see ISimulatorConfig::pacedReplay).
+    bool m_pacedReplay = false;
 
     double *m_dynoTorqueSamples;
     int m_lastDynoTorqueSample;
