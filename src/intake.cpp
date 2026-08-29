@@ -21,6 +21,11 @@ Intake::~Intake() {
     /* void */
 }
 
+void Intake::resetGasState() {
+    m_system.reset(units::pressure(1.0, units::atm), units::celcius(25.0));
+    m_flow = 0;
+}
+
 void Intake::initialize(Parameters &params) {
     const double width = std::sqrt(params.CrossSectionArea);
     m_system.initialize(

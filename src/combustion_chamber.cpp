@@ -52,6 +52,23 @@ CombustionChamber::~CombustionChamber() {
     assert(m_pressure == nullptr);
 }
 
+void CombustionChamber::resetGasState() {
+    // Back to the initialize() condition for every chamber-local gas system.
+    // m_system keeps its current (piston-tracked) volume — reset() derives
+    // n_mol from it — so this is a fresh ambient charge at the cylinder's
+    // present position. Combustion bookkeeping (m_lit, flame event) is left
+    // alone: m_lit self-clears on the next intake flow.
+    m_system.reset(
+            units::pressure(1.0, units::atm),
+            units::celcius(25.0));
+    m_intakeRunnerAndManifold.reset(
+            units::pressure(1.0, units::atm),
+            units::celcius(25.0));
+    m_exhaustRunnerAndPrimary.reset(
+            units::pressure(1.0, units::atm),
+            units::celcius(25.0));
+}
+
 void CombustionChamber::initialize(const Parameters &params) {
     m_piston = params.Piston;
     m_head = params.Head;

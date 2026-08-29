@@ -51,6 +51,15 @@ class CombustionChamber : public atg_scs::ForceGenerator {
 
         void initialize(const Parameters &params);
         void destroy();
+
+        // Reset all three chamber-local gas systems (cylinder charge, intake
+        // runner+manifold, exhaust runner+primary) back to the initialize()
+        // condition: 1 atm / 25 C ambient mix, zero momentum. The measured
+        // exhaust-port flow is decided between m_system and
+        // m_exhaustRunnerAndPrimary (updateGas flow chain) — a reset that
+        // skips the chamber-local systems does not clear the standing state
+        // that drives sustained reversion.
+        void resetGasState();
         void setEngine(Engine *engine) { m_engine = engine; }
         virtual void apply(atg_scs::SystemState *system);
 

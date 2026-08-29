@@ -24,6 +24,7 @@ class PistonEngineSimulator : public Simulator {
         virtual void loadSimulation(Engine *engine, Vehicle *vehicle, Transmission *transmission) override;
 
         virtual double getTotalExhaustFlow() const override;
+        void resetGasState() override;
         void endFrame() override;
         virtual void destroy() override;
 

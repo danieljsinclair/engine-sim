@@ -45,6 +45,12 @@ class Intake : public Part {
 
         void process(double dt);
 
+        // Reset the plenum's gas state (pressure, temperature, mix, momentum)
+        // back to the initialize() condition and zero the measured flow. The
+        // atmosphere side is re-pinned by process() every tick and needs no
+        // reset; m_system is the standing state.
+        void resetGasState();
+
         inline double getRunnerFlowRate() const { return m_runnerFlowRate; }
         inline double getThrottlePlatePosition() const { return m_idleThrottlePlatePosition * m_throttle; }
         inline double getRunnerLength() const { return m_runnerLength; }

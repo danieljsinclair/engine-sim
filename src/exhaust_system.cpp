@@ -57,6 +57,22 @@ void ExhaustSystem::destroy() {
     /* void */
 }
 
+void ExhaustSystem::resetGasState() {
+    // Mirror the atmosphere pin from process(): ambient air, no fuel, no
+    // residual momentum. m_system keeps its geometry (set in initialize()),
+    // so the next process() tick flows from a clean 1 atm / 25 C runner.
+    GasSystem::Mix airMix;
+    airMix.p_fuel = 0;
+    airMix.p_inert = 1.0;
+    airMix.p_o2 = 0.0;
+
+    m_system.reset(
+            units::pressure(1.0, units::atm),
+            units::celcius(25.0),
+            airMix);
+    m_flow = 0;
+}
+
 void ExhaustSystem::process(double dt) {
     GasSystem::Mix airMix;
     airMix.p_fuel = 0;

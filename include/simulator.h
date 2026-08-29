@@ -73,6 +73,14 @@ public:
     virtual void setFluidSimulationSteps(int steps) { (void)steps; }
     virtual int getFluidSimulationSteps() const { return 0; }
 
+    // Reset every gas system in the induction->exhaust path (intake plenums,
+    // chamber-local runners and cylinder charges, shared exhaust systems)
+    // back to its initialize() ambient condition. No-op in the base (it owns
+    // no fluid systems); PistonEngineSimulator resets the whole chain. Used
+    // at drivetrain handoffs where the running history that set the current
+    // exhaust-flow basin is not the one the engine is about to continue from.
+    virtual void resetGasState() { }
+
     double getTimestep() const { return 1.0 / m_simulationFrequency; }
 
     void setTargetSynthesizerLatency(double latency) { m_targetSynthesizerLatency = latency; }

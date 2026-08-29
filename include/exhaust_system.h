@@ -30,6 +30,14 @@ class ExhaustSystem : public Part {
 
         void process(double dt);
 
+        // Reset the runner's gas state (pressure, temperature, mix, momentum)
+        // back to the initialize() condition and zero the measured flow.
+        // Geometry and tuning parameters are kept — only the thermodynamic
+        // standing state is cleared. The basin the runner settles into is set
+        // by the engine's running history; this is the surgical way to purge a
+        // poisoned basin without reloading the whole simulation.
+        void resetGasState();
+
         inline int getIndex() const { return m_index; }
         inline double getLength() const { return m_length; }
         inline double getFlow() const { return m_flow; }

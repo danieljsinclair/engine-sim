@@ -346,6 +346,26 @@ double PistonEngineSimulator::getTotalExhaustFlow() const {
     return totalFlow;
 }
 
+void PistonEngineSimulator::resetGasState() {
+    // The full induction->exhaust path, in flow order. Partial resets were
+    // measured insufficient: resetting only the shared exhaust systems
+    // (collectors) leaves the chamber-local runners that actually decide the
+    // port-flow sign standing where the old basin left them, and the drive
+    // re-converges to it within ~1 s.
+    const int cylinderCount = m_engine->getCylinderCount();
+    for (int i = 0; i < cylinderCount; ++i) {
+        m_engine->getChamber(i)->resetGasState();
+    }
+
+    for (int i = 0; i < m_engine->getExhaustSystemCount(); ++i) {
+        m_engine->getExhaustSystem(i)->resetGasState();
+    }
+
+    for (int i = 0; i < m_engine->getIntakeCount(); ++i) {
+        m_engine->getIntake(i)->resetGasState();
+    }
+}
+
 #ifdef ATG_ENGINE_SIM_AFTERFIRE_SPIKE
 // Advance every chamber's exhaust auto-ignition chemistry by one step.
 //
