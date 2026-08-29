@@ -110,6 +110,13 @@ class TorqueConverter : public atg_scs::Constraint {
         double getCapacityScale() const { return m_capacityScale; }
 
         // Configuration.
+        // Pair the converter with the engine's design rotation (see Engine::
+        // getDesignRotationDirection). The owning Transmission calls this at
+        // wiring time, before the first solver step; D = -1 pairs a CW
+        // (negative-v_theta) engine with a forward (positive) driveline. The
+        // default (+1) is the historical sign-blind pairing, kept for
+        // stand-alone use without an engine.
+        void setImpellerDirection(double direction);
         void setStallTorqueRatio(double ratio);
         void setCapacityFactor(double factor);
         void setLockupRpm(double rpm);
@@ -135,6 +142,13 @@ class TorqueConverter : public atg_scs::Constraint {
         double m_outputRpm;
         double m_capacityScale;
         bool m_lockupEngaged;
+
+        // Driveline direction pairing. The constraint row ties
+        // w_imp = D * TR * w_turb; D is the sign that maps the engine's
+        // design rotation onto the driveline's forward direction, seeded
+        // from the engine at wiring time (setImpellerDirection). A CCW
+        // (positive-v_theta) engine keeps D = +1 — the historical pairing.
+        double m_impellerDirection = 1.0;
 
         // 0 = fluid capacity only, 1 = full locked ceiling. Tracks
         // m_lockupEngaged at the LockupBlendTimeS rate (see

@@ -212,6 +212,13 @@ void TorqueConverter::setCapacityScale(double scale) {
     m_capacityScale = std::clamp(scale, 0.0, 1.0);
 }
 
+void TorqueConverter::setImpellerDirection(double direction) {
+    // Anything non-negative keeps the historical +1 pairing; only an explicit
+    // negative pairs the CW engine with the forward driveline. Clamped to the
+    // two valid values so a stray magnitude can never scale the row.
+    m_impellerDirection = (direction < 0.0) ? -1.0 : 1.0;
+}
+
 void TorqueConverter::setStallTorqueRatio(double ratio) {
     m_stallTorqueRatio = std::max(ratio, 1.0);
     buildTorqueRatioTable();
@@ -250,14 +257,21 @@ void TorqueConverter::calculate(Output *output, atg_scs::SystemState *state) {
 
     // Row 0 mirrors ClutchConstraint's [-1, +1] pairing with the torque ratio
     // folded into the turbine column, so lambda is the impeller-side torque and
-    // the turbine receives TR * lambda. See the header for the derivation.
+    // the turbine receives D * TR * lambda. The D factor pairs the shafts
+    // THROUGH the gearbox's direction: a CW (negative) engine in a forward
+    // (positive-driveline) car must satisfy w_imp = -TR * w_turb, not
+    // w_imp = +TR * w_turb. Without it the row is sign-blind: lockup keyed on
+    // |SR| engages across a direction mismatch and the solver yanks the crank
+    // through zero into reverse rotation — a reverse-spinning 4-stroke reads
+    // its exhaust port as deep negative flow and goes silent (the family-B
+    // reversion lock). See the header for the derivation.
     output->J[0][0] = 0.0;
     output->J[0][1] = 0.0;
     output->J[0][2] = -1.0;
 
     output->J[0][3] = 0.0;
     output->J[0][4] = 0.0;
-    output->J[0][5] = torqueRatio;
+    output->J[0][5] = m_impellerDirection * torqueRatio;
 
     output->J_dot[0][0] = 0.0;
     output->J_dot[0][1] = 0.0;

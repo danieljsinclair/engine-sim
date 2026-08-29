@@ -101,6 +101,15 @@ void Transmission::addToSystem(
     if (m_torqueConverter != nullptr) {
         m_torqueConverter->setImpeller(&engine->getOutputCrankshaft()->m_body);
         m_torqueConverter->setTurbine(m_rotatingMass);
+        // Pair the row with the engine's design rotation BEFORE the first
+        // solve. Observing the crank at runtime races the start sequence: on a
+        // moving car (truncated/offset sources) the coupled driveline can drag
+        // the cranking crank backwards through zero before any speed threshold
+        // latches, pairing the converter with the WRONG direction and locking
+        // the engine in reverse rotation. The engine's authoring knows the
+        // answer deterministically.
+        m_torqueConverter->setImpellerDirection(
+            engine->getDesignRotationDirection());
         system->addConstraint(m_torqueConverter.get());
     }
 
@@ -135,6 +144,8 @@ void Transmission::attachTorqueConverter(atg_scs::RigidBodySystem *system,
     m_torqueConverter->initialize(params);
     m_torqueConverter->setImpeller(&engine->getOutputCrankshaft()->m_body);
     m_torqueConverter->setTurbine(m_rotatingMass);
+    m_torqueConverter->setImpellerDirection(
+        engine->getDesignRotationDirection());
     system->addConstraint(m_torqueConverter.get());
 }
 
