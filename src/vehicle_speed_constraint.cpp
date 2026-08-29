@@ -69,10 +69,13 @@ void VehicleSpeedConstraint::calculate(Output *output, atg_scs::SystemState *sta
         output->limits[0][1] = 0.0;
     }
 
-    // Sign convention matches the dyno: v_bias sign follows the body's current
-    // spin direction so the constraint always pulls toward |targetVtheta|.
-    output->v_bias[0] = (body->v_theta < 0) ? targetVtheta : -targetVtheta;
-    if (body->v_theta < 0.0 && targetVtheta == 0.0) {
-        output->v_bias[0] = 0.0;
-    }
+    // The pin target is a forward road-speed magnitude — pull toward
+    // +|target| unconditionally. Following the body's instantaneous spin
+    // (the dyno convention) turned every standstill into a direction
+    // lottery: substep jitter flips v_theta across zero and the constraint
+    // then holds the body at -|target| at full clamp while the drivetrain
+    // spins forward (the clutch-slip "free" branch that masquerades as a
+    // clean-flow run). The solver negates v_bias, so -targetVtheta drives
+    // the body forward; a zero target holds zero in both conventions.
+    output->v_bias[0] = -targetVtheta;
 }
