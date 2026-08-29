@@ -58,12 +58,19 @@ void VehicleSpeedConstraint::calculate(Output *output, atg_scs::SystemState *sta
     const double invRatio = (ratio > 0.0) ? (1.0 / ratio) : 0.0;  // sqrt(I/m)
     const double maxTorque = m_maxForce * invRatio;
 
-    // Symmetric limits — can both drive the body up AND brake it down. The dyno
-    // uses asymmetric limits because it only ever resists; we want a true
-    // speed-tracking constraint on the wheels.
+    // Asymmetric authority. Braking keeps the full clamp — road drag/grade is
+    // unbounded, the pin must win when the CSV decel exceeds engine drag, and
+    // the mph-overshoot fix relies on it. DRIVING is capped at 0.4x: the only
+    // forward motive force is engine torque, and a full-authority tug at a
+    // throttle tip-in drags the car through the drivetrain faster than the
+    // engine can spin up (torque clamp, rpm dip through its torque peak:
+    // 1795->1311 at t=29.333) into the negative-port-flow basin — the 29.3s
+    // LOCK, permanent for the drive. 10kN is ~0.5g on a 2t vehicle: enough to
+    // hold speed on a grade and close the WOT overshoot, below WOT wheel
+    // torque so the engine, not the pin, sets acceleration.
     if (m_enabled) {
         output->limits[0][0] = -maxTorque;
-        output->limits[0][1] = maxTorque;
+        output->limits[0][1] = 0.4 * maxTorque;
     } else {
         output->limits[0][0] = 0.0;
         output->limits[0][1] = 0.0;
