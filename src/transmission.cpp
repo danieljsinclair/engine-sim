@@ -1,6 +1,7 @@
 #include "../include/transmission.h"
 
 #include "../include/units.h"
+#include "../include/torque_converter.h"
 
 #include <cmath>
 
@@ -30,10 +31,35 @@ void Transmission::initialize(const Parameters &params) {
     m_maxClutchTorque = params.MaxClutchTorque;
     m_gearRatios = new double[params.GearCount];
     memcpy(m_gearRatios, params.GearRatios, sizeof(double) * m_gearCount);
+
+    if (params.TorqueConverterParams != nullptr) {
+        m_torqueConverter = std::make_unique<TorqueConverter>();
+        m_torqueConverter->initialize(*params.TorqueConverterParams);
+    }
 }
 
 void Transmission::update(double dt) {
-    if (m_gear == -1) {
+    if (m_torqueConverter != nullptr) {
+        // Fluid-coupling torque converter installed: it is the SOLE coupling
+        // path. The friction clutch is held OPEN (zero torque) so it cannot
+        // rigidly lock the engine to the (CSV-pinned) wheels and stall at
+        // standstill. The converter's own K * N^2 pump law loads the engine
+        // proportionally: at WOT/standstill the engine settles at its STALL SPEED
+        // (turbine pinned, TR ~ 2.0, combustion torque balanced by K*N^2*TR) — a
+        // few thousand rpm, well below the free-rev bar — and at cruise the
+        // lockup clutch couples 1:1. No free-rev (always loaded), no stall (the
+        // fluid slips). The converter capacity follows the clutch pedal so a
+        // shift can briefly open the driveline; neutral opens it fully.
+        m_clutchConstraint.m_minTorque = 0;
+        m_clutchConstraint.m_maxTorque = 0;
+        m_torqueConverter->setCapacityScale(m_gear == -1 ? 0.0 : m_clutchPressure);
+        // Advance the lockup apply blend with the step's dt. update() runs
+        // after the solver step (see simulator.cpp), so the solver reads the
+        // blend advanced one frame earlier — a fixed one-frame pipeline delay,
+        // not a correctness issue for a 0.25 s ramp.
+        m_torqueConverter->advanceLockupBlend(dt);
+    }
+    else if (m_gear == -1) {
         m_clutchConstraint.m_minTorque = 0;
         m_clutchConstraint.m_maxTorque = 0;
     }
@@ -42,10 +68,8 @@ void Transmission::update(double dt) {
         m_clutchConstraint.m_maxTorque = m_maxClutchTorque * m_clutchPressure;
     }
 
-    // NOTE: MATCH-mode driving torque is NOT applied here. update() runs AFTER
-    // m_system->process() each frame (simulator.cpp:110 then :114), so anything
-    // written here would miss the solve. The recorded input torque is applied
-    // by the TransmissionInputTorqueGenerator (a ForceGenerator) during
+    // NOTE: MATCH-mode driving torque is NOT applied here — it is applied by
+    // the TransmissionInputTorqueGenerator (a ForceGenerator) during
     // processForces(), accumulating into SystemState::t[rotatingMass] so the ODE
     // integrates it before the clutch constraint solves — see apply() below.
     (void)dt;
@@ -69,6 +93,26 @@ void Transmission::addToSystem(
 
     system->addConstraint(&m_clutchConstraint);
 
+    // Fluid-coupling torque converter: added in parallel with the friction
+    // clutch, spanning the same two bodies (engine crankshaft <-> rotating
+    // mass). The clutch keeps its bodies and is only used to open the driveline
+    // during a shift; the converter supplies the fluid (pump/turbine) torque
+    // path directly in Nm via the SCS solver.
+    if (m_torqueConverter != nullptr) {
+        m_torqueConverter->setImpeller(&engine->getOutputCrankshaft()->m_body);
+        m_torqueConverter->setTurbine(m_rotatingMass);
+        // Pair the row with the engine's design rotation BEFORE the first
+        // solve. Observing the crank at runtime races the start sequence: on a
+        // moving car (truncated/offset sources) the coupled driveline can drag
+        // the cranking crank backwards through zero before any speed threshold
+        // latches, pairing the converter with the WRONG direction and locking
+        // the engine in reverse rotation. The engine's authoring knows the
+        // answer deterministically.
+        m_torqueConverter->setImpellerDirection(
+            engine->getDesignRotationDirection());
+        system->addConstraint(m_torqueConverter.get());
+    }
+
     // MATCH mode: register the input-torque generator so the recorded torque is
     // accumulated onto the rotating mass during processForces each frame.
     system->addForceGenerator(&m_inputTorqueGenerator);
@@ -84,6 +128,38 @@ void TransmissionInputTorqueGenerator::apply(atg_scs::SystemState* system) {
     if (body != nullptr) {
         system->t[body->index] += torque;
     }
+}
+
+void Transmission::attachTorqueConverter(atg_scs::RigidBodySystem *system,
+                                         Engine *engine,
+                                         const TorqueConverter::Parameters &params) {
+    if (m_torqueConverter != nullptr) {
+        return;  // already installed — idempotent
+    }
+    if (system == nullptr || engine == nullptr || m_rotatingMass == nullptr) {
+        return;  // not yet wired — caller must wire the transmission first
+    }
+
+    m_torqueConverter = std::make_unique<TorqueConverter>();
+    m_torqueConverter->initialize(params);
+    m_torqueConverter->setImpeller(&engine->getOutputCrankshaft()->m_body);
+    m_torqueConverter->setTurbine(m_rotatingMass);
+    m_torqueConverter->setImpellerDirection(
+        engine->getDesignRotationDirection());
+    system->addConstraint(m_torqueConverter.get());
+}
+
+void Transmission::ensureTorqueConverter(const TorqueConverter::Parameters &params) {
+    if (m_torqueConverter != nullptr) {
+        return;  // already installed — idempotent
+    }
+    // Create the object only; addToSystem() wires the bodies + adds the
+    // constraint to the rigid-body system at the safe wiring time (before the
+    // solver is ever stepped). Never add a constraint to an already-initialized
+    // live system — the SCS Gauss-Seidel solver pre-sizes its per-constraint
+    // buffers at initialize(), so a post-hoc addConstraint corrupts memory.
+    m_torqueConverter = std::make_unique<TorqueConverter>();
+    m_torqueConverter->initialize(params);
 }
 
 void Transmission::changeGear(int newGear) {

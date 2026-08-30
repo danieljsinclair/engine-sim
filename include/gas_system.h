@@ -74,7 +74,14 @@ class GasSystem {
         void updateVelocity(double dt, double beta = 1.0);
         void dissipateVelocity(double dt, double timeConstant);
 
-        static double flow(const FlowParameters &params);
+        // Moves gas between the two systems and returns the signed MOLES
+        // transferred (positive = system_0 -> system_1). volumeMoved, when
+        // non-null, receives the same transfer expressed as the VOLUME that
+        // gas occupied at the SOURCE system's conditions (signed) — what a
+        // volumetric-flow readout actually wants; using one side's state for
+        // both directions biases the net (outflow and reversion happen at
+        // different pressures).
+        static double flow(const FlowParameters &params, double *volumeMoved = nullptr);
         double flow(double k_flow, double dt, double P_env, double T_env, const Mix &mix);
         double flow(double k_flow, double dt, double P_env, double T_env);
 

@@ -274,9 +274,11 @@ void Synthesizer::renderAudio() {
         m_filters[i].jitterFilter.setJitterScale(m_audioParameters.inputSampleNoise);
     }
 
+    resetOutputRmsAccumulators();
     for (int i = 0; i < n; ++i) {
         m_audioBuffer.write(renderAudio(i));
     }
+    publishOutputRms();
 
     m_cv0.notify_one();
 }
@@ -308,9 +310,11 @@ void Synthesizer::renderAudioOnDemand() {
         m_filters[i].jitterFilter.setJitterScale(m_audioParameters.inputSampleNoise);
     }
 
+    resetOutputRmsAccumulators();
     for (int i = 0; i < n; ++i) {
         m_audioBuffer.write(renderAudio(i));
     }
+    publishOutputRms();
 
     m_cv0.notify_one();
 }
@@ -386,8 +390,14 @@ int16_t Synthesizer::renderAudio(int inputSample) {
     signal = m_antialiasing.fast_f(signal);
 
     m_levelingFilter.p_target = m_audioParameters.levelerTarget;
-    const float v_leveled = m_levelingFilter.f(signal) * m_audioParameters.volume;
-    int r_int = std::lround(v_leveled);
+    const float v_leveled = m_levelingFilter.f(signal);
+    // Output-level tap: measure the post-leveler, PRE-volume sample (see
+    // getOutputRmsPreVolume). The leveler call above advances the filter, so
+    // the value is captured here once and reused for the volume multiply.
+    m_outputRmsSum += v_leveled;
+    m_outputRmsSumSq += static_cast<double>(v_leveled) * v_leveled;
+    ++m_outputRmsCount;
+    int r_int = std::lround(v_leveled * m_audioParameters.volume);
     if (r_int > INT16_MAX) {
         r_int = INT16_MAX;
     }
@@ -401,6 +411,26 @@ int16_t Synthesizer::renderAudio(int inputSample) {
 double Synthesizer::getLevelerGain() {
     std::lock_guard<std::mutex> lock(m_lock0);
     return m_levelingFilter.getAttenuation();
+}
+
+double Synthesizer::getOutputRmsPreVolume() const {
+    std::lock_guard<std::mutex> lock(m_lock0);
+    return m_lastOutputRms;
+}
+
+void Synthesizer::resetOutputRmsAccumulators() {
+    m_outputRmsSum = 0.0;
+    m_outputRmsSumSq = 0.0;
+    m_outputRmsCount = 0;
+}
+
+void Synthesizer::publishOutputRms() {
+    if (m_outputRmsCount == 0) return;
+
+    const double mean = m_outputRmsSum / m_outputRmsCount;
+    const double variance = m_outputRmsSumSq / m_outputRmsCount - mean * mean;
+    std::lock_guard<std::mutex> lock(m_lock0);
+    m_lastOutputRms = variance > 0.0 ? std::sqrt(variance) : 0.0;
 }
 
 Synthesizer::AudioParameters Synthesizer::getAudioParameters() {

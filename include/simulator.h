@@ -39,6 +39,18 @@ public:
     virtual void startFrame(double dt);
     bool simulateStep();
     virtual double getTotalExhaustFlow() const;
+
+    // Frame-integrated display readouts. The solver runs at the simulation
+    // frequency (10 kHz) INSIDE one frame; quantities that are physically
+    // per-substep (constraint reaction forces, chamber exhaust volume) alias
+    // badly when sampled once per frame — the last substep's value flickers
+    // with the firing ripple. These expose the MEAN over every step of the
+    // most recent frame that actually stepped (a zero-step frame keeps the
+    // previous frame's means; the latency governor can skip steps).
+    double getFrameExhaustFlowRate() const;   // m^3/s, true mean rate
+    double getFrameCouplingTorque() const;    // Nm, engine-side coupling mean
+    double getFrameTurbineTorque() const;     // Nm, turbine-side coupling mean
+
     int readAudioOutput(int samples, int16_t *target);
     virtual void endFrame();
     virtual void destroy();
@@ -65,8 +77,14 @@ public:
 
     void setTargetSynthesizerLatency(double latency) { m_targetSynthesizerLatency = latency; }
     double getTargetSynthesizerLatency() const { return m_targetSynthesizerLatency; }
+    void setPacedReplay(bool paced) { m_pacedReplay = paced; }
+    bool isPacedReplay() const { return m_pacedReplay; }
     double getSynthesizerInputLatency() const { return m_synthesizer.getLatency(); }
     double getSynthesizerInputLatencyTarget() const;
+    // Output level of the last rendered audio block: post-leveler, pre-volume
+    // RMS in int16 output scale (-1.0 until the first block). See
+    // Synthesizer::getOutputRmsPreVolume.
+    double getSynthesizerOutputRms() const { return m_synthesizer.getOutputRmsPreVolume(); }
 
     void setSimulationSpeed(double simSpeed) { m_simulationSpeed = simSpeed; }
     double getSimulationSpeed() const { return m_simulationSpeed; }
@@ -120,11 +138,20 @@ private:
 
     double m_targetSynthesizerLatency;
     double m_simulationSpeed;
+    // Paced-replay mode: when set, the audio-latency governor in startFrame is
+    // disabled so the per-frame substep count is deterministic (see ISimulatorConfig::pacedReplay).
+    bool m_pacedReplay = false;
 
     double *m_dynoTorqueSamples;
     int m_lastDynoTorqueSample;
 
     double m_filteredEngineSpeed;
+
+    // Frame integration accumulators for the display readouts above.
+    double m_frameExhaustVolume;
+    double m_frameCouplingTorqueSum;
+    double m_frameTurbineTorqueSum;
+    int m_frameStepsTaken;
 
     int m_steps;
 };

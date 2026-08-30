@@ -4,9 +4,17 @@
 
 VehicleSpeedConstraint::VehicleSpeedConstraint() : atg_scs::Constraint(1, 1) {
     m_targetLinearSpeed = 0.0;
-    m_ks = 2.0;     // soft: let the wheel speed lag, don't force it
-    m_kd = 0.5;
-    m_maxForce = 5000.0;  // gentle — don't overpower combustion
+    // PIN-mode gains. The prior m_ks=2 / m_maxForce=5000N was so soft the engine
+    // (M156 ~19000N at the wheels in 1st) overpowered it on every hard accel and
+    // the simulated speed ran 3-7 mph AHEAD of the CSV target (the mph-overshoot
+    // failure: |sim-tgt| up to 11, %>2 ~20%). These gains tighten the velocity
+    // bias so PIN actually PINS (sim tracks the CSV within ~2 mph under load)
+    // while staying below the combustion force scale so the engine-sim still
+    // loads against the constraint (the clutch still couples engine↔road, the
+    // rpm/sound still emerges from physics, not from a hard speed playback).
+    m_ks = 15.0;    // tighter: clamp WOT-stomp overshoot toward the CSV target
+    m_kd = 2.0;     // heavier damping: keep the stiff spring stable at buffer dt
+    m_maxForce = 25000.0;  // brake authority exceeds a 1st-gear WOT torque spike
 
     m_enabled = false;
 }
@@ -61,10 +69,13 @@ void VehicleSpeedConstraint::calculate(Output *output, atg_scs::SystemState *sta
         output->limits[0][1] = 0.0;
     }
 
-    // Sign convention matches the dyno: v_bias sign follows the body's current
-    // spin direction so the constraint always pulls toward |targetVtheta|.
-    output->v_bias[0] = (body->v_theta < 0) ? targetVtheta : -targetVtheta;
-    if (body->v_theta < 0.0 && targetVtheta == 0.0) {
-        output->v_bias[0] = 0.0;
-    }
+    // The pin target is a forward road-speed magnitude — pull toward
+    // +|target| unconditionally. Following the body's instantaneous spin
+    // (the dyno convention) turned every standstill into a direction
+    // lottery: substep jitter flips v_theta across zero and the constraint
+    // then holds the body at -|target| at full clamp while the drivetrain
+    // spins forward (the clutch-slip "free" branch that masquerades as a
+    // clean-flow run). The solver negates v_bias, so -targetVtheta drives
+    // the body forward; a zero target holds zero in both conventions.
+    output->v_bias[0] = -targetVtheta;
 }

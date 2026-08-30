@@ -79,6 +79,17 @@ class Engine : public Part {
 
         inline double getStarterTorque() const { return m_starterTorque; }
         inline double getStarterSpeed() const { return m_starterSpeed; }
+        // The engine's DESIGN rotation as a sign on v_theta (+1 / -1). The
+        // starter motor drives the crank at -starterSpeed
+        // (PistonEngineSimulator wires StarterMotor::m_rotationSpeed = -
+        // getStarterSpeed()), so a conventionally authored positive
+        // starterSpeed means the design rotation is NEGATIVE v_theta (CW —
+        // see isSpinningCw). This is a property of the engine's authoring,
+        // knowable before the first solver step, unlike isSpinningCw() which
+        // reports the CURRENT rotation.
+        inline double getDesignRotationDirection() const {
+            return (m_starterSpeed < 0.0) ? 1.0 : -1.0;
+        }
         inline double getRedline() const { return m_redline; }
         inline double getDynoMinSpeed() const { return m_dynoMinSpeed; }
         inline double getDynoMaxSpeed() const { return m_dynoMaxSpeed; }

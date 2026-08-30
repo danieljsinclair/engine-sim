@@ -292,7 +292,11 @@ void CombustionChamber::flow(double dt) {
     flowParams.direction_y = 0.0;
     flowParams.system_0 = &m_system;
     flowParams.system_1 = &m_exhaustRunnerAndPrimary;
-    const double exhaustFlow = GasSystem::flow(flowParams);
+    // volumeMoved: the same transfer as a VOLUME at the source side's
+    // conditions (cylinder state on outflow, runner state on reversion) —
+    // what the exhaust-flow readout accumulates. See GasSystem::flow.
+    double exhaustVolumeMoved = 0.0;
+    const double exhaustFlow = GasSystem::flow(flowParams, &exhaustVolumeMoved);
 
     m_system.dissipateExcessVelocity();
     m_exhaustRunnerAndPrimary.dissipateExcessVelocity();
@@ -315,7 +319,12 @@ void CombustionChamber::flow(double dt) {
     }
 
     m_exhaustFlow = exhaustFlow;
-    m_lastTimestepTotalExhaustFlow += exhaustFlow;
+    // Accumulate the port flow as VOLUME (source-side conditions, signed:
+    // positive = out the exhaust port, negative = reversion). The raw mole
+    // sum was previously displayed as a volume rate — mol/s shown as m^3/s,
+    // dimensionally wrong and ~70x off. m_exhaustFlow stays in moles for its
+    // existing consumers.
+    m_lastTimestepTotalExhaustFlow += exhaustVolumeMoved;
     m_lastTimestepTotalIntakeFlow += intakeFlow;
 
     if (m_lit) {
