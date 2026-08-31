@@ -1,5 +1,6 @@
 #include "../include/synthesizer.h"
 
+#include "../include/span_tame.h"
 #include "../include/utilities.h"
 // #include "../include/delta.h"  // Disabled - not needed for CLI build
 
@@ -391,13 +392,23 @@ int16_t Synthesizer::renderAudio(int inputSample) {
 
     m_levelingFilter.p_target = m_audioParameters.levelerTarget;
     const float v_leveled = m_levelingFilter.f(signal);
-    // Output-level tap: measure the post-leveler, PRE-volume sample (see
-    // getOutputRmsPreVolume). The leveler call above advances the filter, so
-    // the value is captured here once and reused for the volume multiply.
+    // Output-level tap: measure the post-leveler, PRE-volume, PRE-tame sample
+    // (see getOutputRmsPreVolume). The leveler call above advances the filter,
+    // so the value is captured here once and reused for the volume multiply.
     m_outputRmsSum += v_leveled;
     m_outputRmsSumSq += static_cast<double>(v_leveled) * v_leveled;
     ++m_outputRmsCount;
-    int r_int = std::lround(v_leveled * m_audioParameters.volume);
+
+    // Output-stage span tamer: applied to the post-leveler, post-volume sample
+    // immediately before the int16 conversion. spanTame == 0 (default/off) is
+    // bit-identical to the legacy path (no shape call at all), preserving the
+    // golden-PCM off-contract.
+    float v_out = v_leveled;
+    if (m_audioParameters.spanTame > 0.0f) {
+        v_out = span_tame::shape(v_leveled, m_audioParameters.spanTame);
+    }
+
+    int r_int = std::lround(v_out * m_audioParameters.volume);
     if (r_int > INT16_MAX) {
         r_int = INT16_MAX;
     }
