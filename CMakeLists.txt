@@ -99,6 +99,7 @@ add_library(engine-sim STATIC
     src/simulator.cpp
     src/standard_valvetrain.cpp
     src/starter_motor.cpp
+    src/span_tame.cpp
     src/synthesizer.cpp
     src/throttle.cpp
     src/transmission.cpp
@@ -434,6 +435,7 @@ add_executable(engine-sim-test
     # Source files
     test/gas_system_tests.cpp
     test/function_test.cpp
+    test/span_tame_tests.cpp
     test/synthesizer_tests.cpp
     test/afterfire_tests.cpp
 )
