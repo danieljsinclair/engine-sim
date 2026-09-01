@@ -86,9 +86,14 @@ void Synthesizer::initialize(const Parameters &p) {
     m_levelingFilter.p_minLevel = m_audioParameters.levelerMinGain;
     m_antialiasing.setCutoffFrequency(m_audioSampleRate * 0.45f, m_audioSampleRate);
 
-    for (int i = 0; i < m_audioBufferSize; ++i) {
-        m_audioBuffer.write(0);
-    }
+    // NOTE: the audio ring is intentionally NOT pre-filled with zeros. The old
+    // pre-fill made size() report full capacity from the start, which (combined
+    // with the free-space cap in renderAudioOnDemand) would force the first ~1s
+    // of renders to produce 0 frames -- readAudioOutput's short-read path then
+    // zero-filled those slots, inserting silence dropouts at startup. Starting
+    // from an empty ring lets the producer outpace the consumer from frame one,
+    // and the free-space cap keeps the write index from ever lapping the read
+    // index.
 }
 
 void Synthesizer::initializeImpulseResponse(
