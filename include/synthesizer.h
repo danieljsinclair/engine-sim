@@ -29,6 +29,12 @@ class Synthesizer {
             float levelerTarget = 30000.0f;
             float levelerMaxGain = 1.9f;
             float levelerMinGain = 0.00001f;
+            // Output-stage span taming amount (--span-tame CLI arg, forwarded
+            // via the bridge). 0.0 (default) = feature OFF = renderAudio takes
+            // the exact legacy path (bit-identical output). (0, 1] engages the
+            // span_tame waveshaper immediately before the int16 conversion.
+            // See include/span_tame.h for the pinned parameterization.
+            float spanTame = 0.0f;
         };
 
         struct Parameters {
