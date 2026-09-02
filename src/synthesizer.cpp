@@ -86,9 +86,14 @@ void Synthesizer::initialize(const Parameters &p) {
     m_levelingFilter.p_minLevel = m_audioParameters.levelerMinGain;
     m_antialiasing.setCutoffFrequency(m_audioSampleRate * 0.45f, m_audioSampleRate);
 
-    for (int i = 0; i < m_audioBufferSize; ++i) {
-        m_audioBuffer.write(0);
-    }
+    // NOTE: the audio ring is intentionally NOT pre-filled with zeros. The old
+    // pre-fill made size() report full capacity from the start, which (combined
+    // with the free-space cap in renderAudioOnDemand) would force the first ~1s
+    // of renders to produce 0 frames -- readAudioOutput's short-read path then
+    // zero-filled those slots, inserting silence dropouts at startup. Starting
+    // from an empty ring lets the producer outpace the consumer from frame one,
+    // and the free-space cap keeps the write index from ever lapping the read
+    // index.
 }
 
 void Synthesizer::initializeImpulseResponse(
@@ -222,16 +227,17 @@ void Synthesizer::writeInput(const double *data) {
 }
 
 void Synthesizer::endInputBlock() {
-    std::unique_lock<std::mutex> lk(m_inputLock); 
+    std::unique_lock<std::mutex> lk(m_inputLock);
 
-    for (int i = 0; i < m_inputChannelCount; ++i) {
-        m_inputChannels[i].data.removeBeginning(m_inputSamplesRead);
-    }
-
+    // Input removal now happens atomically inside the render paths
+    // (renderAudio / renderAudioOnDemand, under m_lock0). The deferred
+    // removal here double-counted when the on-demand callback and the
+    // background thread both read between endFrames, advancing m_start past
+    // valid data. Left with only the bookkeeping the render paths need.
     if (m_inputChannelCount != 0) {
         m_latency = m_inputChannels[0].data.size();
     }
-    
+
     m_inputSamplesRead = 0;
     m_processed = false;
 
@@ -262,8 +268,12 @@ void Synthesizer::renderAudio() {
 
     for (int i = 0; i < m_inputChannelCount; ++i) {
         m_inputChannels[i].data.read(n, m_inputChannels[i].transferBuffer);
+        // Consume atomically with the read (under m_lock0): with copy-only
+        // reads the same backlog could be synthesized twice when two consumers
+        // (background thread + on-demand caller) overlapped between loop ticks.
+        m_inputChannels[i].data.removeBeginning(n);
     }
-    
+
     m_inputSamplesRead = n;
     m_processed = true;
 
@@ -287,9 +297,19 @@ void Synthesizer::renderAudio() {
 void Synthesizer::renderAudioOnDemand() {
     std::unique_lock<std::mutex> lk0(m_lock0);
 
+    // Bound the render by BOTH the available input and the audio ring's FREE
+    // SPACE. The old bound (the full ring capacity) combined with
+    // RingBuffer::write's blind (no-fullness-check) semantics let the write
+    // index lap the read index whenever the caller produced faster than the
+    // device consumed: size() then collapsed from ~capacity to near zero,
+    // ~1s of already-synthesized audio became unreachable, and the next read
+    // started mid-waveform -- the sync-pull buffer-boundary knock.
+    const int freeSpace = std::max(
+        0, (int)m_audioBufferSize - (int)m_audioBuffer.size());
+
     const int n = std::min(
         (int)m_inputChannels[0].data.size(),
-        (int)m_audioBufferSize);
+        freeSpace);
 
     if (n == 0) {
         lk0.unlock();
@@ -298,6 +318,14 @@ void Synthesizer::renderAudioOnDemand() {
 
     for (int i = 0; i < m_inputChannelCount; ++i) {
         m_inputChannels[i].data.read(n, m_inputChannels[i].transferBuffer);
+        // Consume what was read NOW (atomically under m_lock0). The old
+        // copy-only read deferred removal to endInputBlock (once per loop
+        // tick), so when the audio callback ran renderAudioOnDemand between
+        // ticks it re-read the SAME backlog and re-synthesized it -- production
+        // ran at the callback/tick rate ratio (86/60 ~ 1.44x realtime), which
+        // is what overfilled the ring. Removing here makes every call
+        // synthesize exactly the input that arrived since the previous call.
+        m_inputChannels[i].data.removeBeginning(n);
     }
 
     m_inputSamplesRead = n;
